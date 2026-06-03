@@ -7,6 +7,7 @@ import androidx.navigation.compose.rememberNavController
 import com.sportflow.app.ui.screens.*
 import com.sportflow.app.ui.screens.user.UserDashboardScreen
 import com.sportflow.app.ui.screens.admin.AdminDashboardScreen
+import com.sportflow.app.ui.screens.organizador.OrganizadorDashboardScreen
 
 
 
@@ -17,7 +18,7 @@ fun NavGraph() {
 
     NavHost(
         navController = navController,
-        startDestination = NavRoutes.INTRO
+        startDestination = NavRoutes.HOME
     ) {
         composable(NavRoutes.INTRO) {
             IntroScreen(onNavigateToLogin = {
@@ -56,7 +57,7 @@ fun NavGraph() {
             )
         }
         composable(NavRoutes.HOME) {
-            AdminDashboardScreen()
+            OrganizadorDashboardScreen()
         }
     }
 }
