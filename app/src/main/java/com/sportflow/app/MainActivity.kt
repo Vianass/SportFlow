@@ -27,6 +27,8 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import com.sportflow.app.ui.theme.SportFlowTheme
 import com.sportflow.app.ui.theme.SportFlowTextGray
 import com.sportflow.app.ui.theme.SportFlowGreen
@@ -59,13 +61,15 @@ class MainActivity : ComponentActivity() {
 
         super.onCreate(savedInstanceState)
 
-        splashScreen.setKeepOnScreenCondition {
-            !viewModel.isReady.value
-        }
+        // Remover ou comentar isto para que a splash screen nativa não esconda a sua MainScreen()
+        // splashScreen.setKeepOnScreenCondition {
+        //     !viewModel.isReady.value
+        // }
 
         setContent {
             val context = LocalContext.current
             SideEffect { languageViewModel.loadSavedLanguage(context) }
+            val isReady by viewModel.isReady.collectAsState()
 
             CompositionLocalProvider(LocalLanguageViewModel provides languageViewModel) {
                 SportFlowTheme {
@@ -73,7 +77,11 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background
                     ) {
-                        NavGraph()
+                        if (isReady) {
+                            NavGraph()
+                        } else {
+                            MainScreen()
+                        }
                     }
                 }
             }
