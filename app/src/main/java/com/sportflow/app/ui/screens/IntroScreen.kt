@@ -23,11 +23,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sportflow.app.R
 import com.sportflow.app.ui.theme.SportFlowGreen
+import androidx.compose.ui.platform.LocalContext
+import android.content.Context
 
 @Composable
-fun IntroScreen(onNavigateToLogin: () -> Unit) {
+fun IntroScreen(onNavigate: (String) -> Unit) {
     // Progress animation from 0.0f to 1.0f
     val progress = remember { Animatable(0f) }
+    val context = LocalContext.current
+    val sharedPrefs = remember { context.getSharedPreferences("sportflow_prefs", Context.MODE_PRIVATE) }
 
     LaunchedEffect(Unit) {
         // Animate the progress loading bar over 2.5 seconds
@@ -36,7 +40,9 @@ fun IntroScreen(onNavigateToLogin: () -> Unit) {
             animationSpec = tween(durationMillis = 2500)
         )
         // Automatic navigation callback when load finishes
-        onNavigateToLogin()
+        val isLoggedIn = sharedPrefs.getBoolean("is_logged_in", false)
+        val targetRoute = if (isLoggedIn) com.sportflow.app.navigation.NavRoutes.HOME else com.sportflow.app.navigation.NavRoutes.LANDING
+        onNavigate(targetRoute)
     }
 
     Box(
@@ -97,7 +103,7 @@ fun IntroScreen(onNavigateToLogin: () -> Unit) {
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
-                        painter = painterResource(id = R.drawable.sportflowlogo),
+                        painter = painterResource(id = R.drawable.sportflow_logo),
                         contentDescription = "SportFlow Logo",
                         modifier = Modifier.size(75.dp)
                     )
@@ -234,7 +240,7 @@ fun IntroScreenPreview() {
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
-                        painter = painterResource(id = R.drawable.sportflowlogo),
+                        painter = painterResource(id = R.drawable.sportflow_logo),
                         contentDescription = "SportFlow Logo",
                         modifier = Modifier.size(75.dp)
                     )

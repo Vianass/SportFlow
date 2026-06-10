@@ -13,24 +13,129 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sportflow.app.R
+import com.sportflow.app.model.AppLanguage
+import com.sportflow.app.model.LocalLanguageViewModel
+import com.sportflow.app.ui.components.ChangePasswordDialog
+import com.sportflow.app.ui.components.LanguagePickerDialog
+import com.sportflow.app.ui.components.NotificationsDialog
+import com.sportflow.app.ui.components.OrganizadorPrivacyDialog
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
 import com.sportflow.app.ui.theme.SportFlowTextGray
 
 @Composable
-fun OrganizadorProfileScreen() {
+fun OrganizadorProfileScreen(onLogout: () -> Unit = {}) {
+    val langViewModel = LocalLanguageViewModel.current
+    val currentLanguage by langViewModel.language.collectAsState()
+    val notificationsEnabled by langViewModel.notificationsEnabled.collectAsState()
+    val shareContact by langViewModel.shareContactWithAthletes.collectAsState()
+    val context = LocalContext.current
+    var showLanguagePicker by remember { mutableStateOf(false) }
+    var showNotificationsDialog by remember { mutableStateOf(false) }
+    var showPrivacyDialog by remember { mutableStateOf(false) }
+    var showPasswordDialog by remember { mutableStateOf(false) }
+    var showSupportDialog by remember { mutableStateOf(false) }
+    var showOrgProfileDialog by remember { mutableStateOf(false) }
+    var showOrgDataDialog by remember { mutableStateOf(false) }
+
+    var orgUserName by remember { mutableStateOf("Hugo Carvalho") }
+    var orgUserEmail by remember { mutableStateOf("Hugo Carvalho@ESTG.pt") }
+    var orgUserBio by remember { mutableStateOf("Organizador de torneios de futsal na ESTG.") }
+
+    var orgName by remember { mutableStateOf("AE - IPCV-ESTG") }
+    var orgNif by remember { mutableStateOf("500 123 456") }
+    var orgAddress by remember { mutableStateOf("Avenida do Atlântico, Viana do Castelo") }
+    var orgContact by remember { mutableStateOf("258 111 222") }
+
+    if (showLanguagePicker) {
+        LanguagePickerDialog(
+            currentLanguage = currentLanguage,
+            onLanguageSelected = { lang -> langViewModel.setLanguage(lang, context) },
+            onDismiss = { showLanguagePicker = false }
+        )
+    }
+
+    if (showNotificationsDialog) {
+        NotificationsDialog(
+            enabled = notificationsEnabled,
+            currentLanguage = currentLanguage,
+            onToggle = { enabled -> langViewModel.setNotificationsEnabled(enabled, context) },
+            onDismiss = { showNotificationsDialog = false }
+        )
+    }
+
+    if (showPrivacyDialog) {
+        OrganizadorPrivacyDialog(
+            currentLanguage = currentLanguage,
+            shareContact = shareContact,
+            onShareContactToggle = { langViewModel.setShareContactWithAthletes(it, context) },
+            onDismiss = { showPrivacyDialog = false }
+        )
+    }
+    if (showPasswordDialog) {
+        ChangePasswordDialog(
+            currentLanguage = currentLanguage,
+            onSave = { /* Save logic here */ },
+            onDismiss = { showPasswordDialog = false }
+        )
+    }
+
+    if (showSupportDialog) {
+        com.sportflow.app.ui.components.SupportDialog(
+            onDismiss = { showSupportDialog = false }
+        )
+    }
+
+    if (showOrgProfileDialog) {
+        com.sportflow.app.ui.components.EditOrgProfileDialog(
+            initialName = orgUserName,
+            initialEmail = orgUserEmail,
+            initialBio = orgUserBio,
+            onSave = { name, email, bio ->
+                orgUserName = name
+                orgUserEmail = email
+                orgUserBio = bio
+                showOrgProfileDialog = false
+            },
+            onDismiss = { showOrgProfileDialog = false }
+        )
+    }
+
+    if (showOrgDataDialog) {
+        com.sportflow.app.ui.components.EditOrgDataDialog(
+            initialOrgName = orgName,
+            initialNif = orgNif,
+            initialAddress = orgAddress,
+            initialContact = orgContact,
+            onSave = { name, nif, address, contact ->
+                orgName = name
+                orgNif = nif
+                orgAddress = address
+                orgContact = contact
+                showOrgDataDialog = false
+            },
+            onDismiss = { showOrgDataDialog = false }
+        )
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -90,7 +195,7 @@ fun OrganizadorProfileScreen() {
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
-                    text = "Hugo Carvalho",
+                    text = orgUserName,
                     fontSize = 26.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = SportFlowDarkBlue
@@ -99,7 +204,7 @@ fun OrganizadorProfileScreen() {
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "Hugo Carvalho@ESTG.pt",
+                    text = orgUserEmail,
                     fontSize = 13.sp,
                     color = Color(0xFF64748B)
                 )
@@ -122,7 +227,7 @@ fun OrganizadorProfileScreen() {
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "AE - IPCV-ESTG",
+                        text = orgName,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF2563EB)
@@ -217,17 +322,23 @@ fun OrganizadorProfileScreen() {
                     ProfileSettingItem(
                         icon = Icons.Default.Person,
                         title = "Editar Perfil",
-                        subtitle = "Alterar nome, foto e bio"
+                        subtitle = "Alterar nome, foto e bio",
+                        onClick = { showOrgProfileDialog = true }
                     )
                     ProfileSettingItem(
                         icon = Icons.Default.Business,
                         title = "Dados da Organização",
-                        subtitle = "NIF, Morada e Contactos"
+                        subtitle = "NIF, Morada e Contactos",
+                        onClick = { showOrgDataDialog = true }
                     )
                     ProfileSettingItem(
                         icon = Icons.Default.Notifications,
-                        title = "Notificações",
-                        subtitle = "Alertas de inscrições e pagamentos"
+                        title = if (currentLanguage == AppLanguage.PT) "Notificações" else "Notifications",
+                        subtitle = if (notificationsEnabled)
+                            (if (currentLanguage == AppLanguage.PT) "Ativadas" else "Enabled")
+                        else
+                            (if (currentLanguage == AppLanguage.PT) "Desativadas" else "Disabled"),
+                        onClick = { showNotificationsDialog = true }
                     )
                 }
             }
@@ -251,19 +362,28 @@ fun OrganizadorProfileScreen() {
 
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     ProfileSettingItem(
+                        icon = Icons.Default.Lock,
+                        title = if (currentLanguage == AppLanguage.PT) "Privacidade" else "Privacy",
+                        subtitle = if (currentLanguage == AppLanguage.PT) "Visibilidade de dados" else "Data visibility",
+                        onClick = { showPrivacyDialog = true }
+                    )
+                    ProfileSettingItem(
                         icon = Icons.Default.Shield,
-                        title = "Segurança",
-                        subtitle = "Password e 2FA"
+                        title = if (currentLanguage == AppLanguage.PT) "Segurança" else "Security",
+                        subtitle = "Password e 2FA",
+                        onClick = { showPasswordDialog = true }
                     )
                     ProfileSettingItem(
                         icon = Icons.Default.Headset,
                         title = "Centro de Ajuda",
-                        subtitle = "Falar com o suporte"
+                        subtitle = "Falar com o suporte",
+                        onClick = { showSupportDialog = true }
                     )
                     ProfileSettingItem(
                         icon = Icons.Default.Language,
-                        title = "Selecione o seu Idioma",
-                        subtitle = "Português (PT)"
+                        title = if (currentLanguage == AppLanguage.PT) "Selecione o seu Idioma" else "Select your Language",
+                        subtitle = if (currentLanguage == AppLanguage.PT) "Português (PT)" else "English (EN)",
+                        onClick = { showLanguagePicker = true }
                     )
                 }
             }
@@ -272,7 +392,7 @@ fun OrganizadorProfileScreen() {
         // Logout Button
         item {
             Button(
-                onClick = {},
+                onClick = onLogout,
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFFFEE2E2),
@@ -308,12 +428,13 @@ fun OrganizadorProfileScreen() {
 fun ProfileSettingItem(
     icon: ImageVector,
     title: String,
-    subtitle: String
+    subtitle: String,
+    onClick: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable {},
+            .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         border = BorderStroke(0.5.dp, Color(0xFFE2E8F0))

@@ -1,5 +1,9 @@
 package com.sportflow.app.ui.screens
 
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import com.sportflow.app.ui.components.SportFlowLoadingOverlay
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -44,8 +48,12 @@ fun RegisterScreen(onRegisterSuccess: () -> Unit, onNavigateToLogin: () -> Unit)
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
     var selectedUserType by remember { mutableStateOf("ATLETA") } // "ATLETA", "ORGANIZADOR", "ADMIN"
+    var isLoading by remember { mutableStateOf(false) }
 
     val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val sharedPrefs = remember { context.getSharedPreferences("sportflow_prefs", android.content.Context.MODE_PRIVATE) }
 
     Box(
         modifier = Modifier
@@ -92,7 +100,7 @@ fun RegisterScreen(onRegisterSuccess: () -> Unit, onNavigateToLogin: () -> Unit)
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Image(
-                            painter = painterResource(id = R.drawable.sportflowlogo),
+                            painter = painterResource(id = R.drawable.sportflow_logo),
                             contentDescription = "SportFlow Logo",
                             modifier = Modifier
                                 .size(28.dp)
@@ -381,7 +389,18 @@ fun RegisterScreen(onRegisterSuccess: () -> Unit, onNavigateToLogin: () -> Unit)
                                 name.isBlank() || email.isBlank() -> errorMessage = "Por favor, preencha todos os campos"
                                 password != confirmPassword -> errorMessage = "As palavra-passes não coincidem"
                                 password.length < 6 -> errorMessage = "Mínimo 6 caracteres"
-                                else -> onRegisterSuccess()
+                                else -> {
+                                    coroutineScope.launch {
+                                        isLoading = true
+                                        sharedPrefs.edit()
+                                            .putBoolean("is_logged_in", true)
+                                            .putString("user_type", selectedUserType)
+                                            .apply()
+                                        delay(1500)
+                                        isLoading = false
+                                        onRegisterSuccess()
+                                    }
+                                }
                             }
                         },
                         shape = RoundedCornerShape(12.dp),
@@ -438,12 +457,12 @@ fun RegisterScreen(onRegisterSuccess: () -> Unit, onNavigateToLogin: () -> Unit)
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         SocialLoginButton(
-                            icon = Icons.Default.Public,
+                            iconRes = R.drawable.google_logo,
                             label = "Google",
                             modifier = Modifier.weight(1f)
                         )
                         SocialLoginButton(
-                            icon = Icons.Default.Share,
+                            iconRes = R.drawable.facebook_logo,
                             label = "Facebook",
                             modifier = Modifier.weight(1f)
                         )
@@ -472,6 +491,9 @@ fun RegisterScreen(onRegisterSuccess: () -> Unit, onNavigateToLogin: () -> Unit)
                     }
                 }
             }
+        }
+        if (isLoading) {
+            SportFlowLoadingOverlay()
         }
     }
 }

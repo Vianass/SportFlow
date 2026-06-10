@@ -12,21 +12,97 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sportflow.app.model.AppLanguage
+import com.sportflow.app.model.LocalLanguageViewModel
+import com.sportflow.app.ui.components.ChangePasswordDialog
+import com.sportflow.app.ui.components.LanguagePickerDialog
+import com.sportflow.app.ui.components.NotificationsDialog
+import com.sportflow.app.ui.components.PaymentDialog
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
 
 @Composable
-fun AdminProfileScreen() {
+fun AdminProfileScreen(onLogout: () -> Unit = {}) {
+    val langViewModel = LocalLanguageViewModel.current
+    val currentLanguage by langViewModel.language.collectAsState()
+    val notificationsEnabled by langViewModel.notificationsEnabled.collectAsState()
+    val context = LocalContext.current
+    var showLanguagePicker by remember { mutableStateOf(false) }
+    var showNotificationsDialog by remember { mutableStateOf(false) }
+    var showPasswordDialog by remember { mutableStateOf(false) }
+    var showPaymentDialog by remember { mutableStateOf(false) }
+    var showEditProfileDialog by remember { mutableStateOf(false) }
+
+    var adminName by remember { mutableStateOf("André Maia") }
+    var adminEmail by remember { mutableStateOf("andre.maia@admin.pt") }
+    var adminPhone by remember { mutableStateOf("+351 966 744 678") }
+    var adminLocation by remember { mutableStateOf("Viana do Castelo, Portugal") }
+
+    if (showLanguagePicker) {
+        LanguagePickerDialog(
+            currentLanguage = currentLanguage,
+            onLanguageSelected = { lang -> langViewModel.setLanguage(lang, context) },
+            onDismiss = { showLanguagePicker = false }
+        )
+    }
+
+    if (showNotificationsDialog) {
+        NotificationsDialog(
+            enabled = notificationsEnabled,
+            currentLanguage = currentLanguage,
+            onToggle = { enabled -> langViewModel.setNotificationsEnabled(enabled, context) },
+            onDismiss = { showNotificationsDialog = false }
+        )
+    }
+
+    if (showPasswordDialog) {
+        ChangePasswordDialog(
+            currentLanguage = currentLanguage,
+            onSave = { /* Handle save password */ },
+            onDismiss = { showPasswordDialog = false }
+        )
+    }
+
+    if (showPaymentDialog) {
+        PaymentDialog(
+            currentLanguage = currentLanguage,
+            onDismiss = { showPaymentDialog = false }
+        )
+    }
+
+    if (showEditProfileDialog) {
+        com.sportflow.app.ui.components.EditProfileDialog(
+            initialName = adminName,
+            initialEmail = adminEmail,
+            initialPhone = adminPhone,
+            initialLocation = adminLocation,
+            onSave = { name, email, phone, location ->
+                adminName = name
+                adminEmail = email
+                adminPhone = phone
+                adminLocation = location
+                showEditProfileDialog = false
+            },
+            onDismiss = { showEditProfileDialog = false }
+        )
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 24.dp, bottom = 32.dp),
@@ -71,7 +147,7 @@ fun AdminProfileScreen() {
                         .clip(CircleShape)
                         .background(Color(0xFF0F5A36)) // Vibrant green theme button
                         .align(Alignment.BottomEnd)
-                        .clickable { /* Handle edit profile picture */ },
+                        .clickable { showEditProfileDialog = true },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -95,7 +171,7 @@ fun AdminProfileScreen() {
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "André Maia",
+                text = adminName,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Black,
                 color = SportFlowDarkBlue
@@ -118,17 +194,17 @@ fun AdminProfileScreen() {
             AdminAccountDataItem(
                 icon = Icons.Default.Email,
                 title = "Email",
-                value = "andre.maia@admin.pt"
+                value = adminEmail
             )
             AdminAccountDataItem(
                 icon = Icons.Default.Phone,
                 title = "Telemóvel",
-                value = "+351 966 744 678"
+                value = adminPhone
             )
             AdminAccountDataItem(
                 icon = Icons.Default.Place,
                 title = "Localização",
-                value = "Viana do Castelo, Portugal"
+                value = adminLocation
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -140,33 +216,30 @@ fun AdminProfileScreen() {
 
             AdminSettingsItem(
                 icon = Icons.Default.Notifications,
-                title = "Notificações",
-                subtitle = "Preferências de alerta",
-                onClick = { /* Navigate */ }
-            )
-            AdminSettingsItem(
-                icon = Icons.Default.Lock,
-                title = "Privacidade",
-                subtitle = "Controlo de visibilidade",
-                onClick = { /* Navigate */ }
+                title = if (currentLanguage == AppLanguage.PT) "Notificações" else "Notifications",
+                subtitle = if (notificationsEnabled)
+                    (if (currentLanguage == AppLanguage.PT) "Ativadas" else "Enabled")
+                else
+                    (if (currentLanguage == AppLanguage.PT) "Desativadas" else "Disabled"),
+                onClick = { showNotificationsDialog = true }
             )
             AdminSettingsItem(
                 icon = Icons.Default.Key,
-                title = "Alterar Palavra-passe",
-                subtitle = "Atualizar credenciais",
-                onClick = { /* Navigate */ }
+                title = if (currentLanguage == AppLanguage.PT) "Alterar Palavra-passe" else "Change Password",
+                subtitle = if (currentLanguage == AppLanguage.PT) "Atualizar credenciais" else "Update credentials",
+                onClick = { showPasswordDialog = true }
             )
             AdminSettingsItem(
                 icon = Icons.Default.CreditCard,
-                title = "Assinatura e Pagamentos",
-                subtitle = "Faturas e plano elite",
-                onClick = { /* Navigate */ }
+                title = if (currentLanguage == AppLanguage.PT) "Métodos de Pagamento" else "Payment Methods",
+                subtitle = if (currentLanguage == AppLanguage.PT) "Adicionar cartão ou MB Way" else "Add card or MB Way",
+                onClick = { showPaymentDialog = true }
             )
             AdminSettingsItem(
                 icon = Icons.Default.Language,
-                title = "Selecione o seu Idioma",
-                subtitle = "Português (PT)",
-                onClick = { /* Navigate */ }
+                title = if (currentLanguage == AppLanguage.PT) "Selecione o seu Idioma" else "Select your Language",
+                subtitle = if (currentLanguage == AppLanguage.PT) "Português (PT)" else "English (EN)",
+                onClick = { showLanguagePicker = true }
             )
 
             Spacer(modifier = Modifier.height(28.dp))
@@ -175,7 +248,7 @@ fun AdminProfileScreen() {
         // 4. Terminar Sessão (Sign Out) Button
         item {
             Button(
-                onClick = { /* Handle Sign Out */ },
+                onClick = onLogout,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)

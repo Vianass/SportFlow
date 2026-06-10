@@ -13,22 +13,113 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sportflow.app.model.AppLanguage
+import com.sportflow.app.model.LocalLanguageViewModel
+import com.sportflow.app.ui.components.ChangePasswordDialog
+import com.sportflow.app.ui.components.LanguagePickerDialog
+import com.sportflow.app.ui.components.NotificationsDialog
+import com.sportflow.app.ui.components.PaymentDialog
+import com.sportflow.app.ui.components.UserPrivacyDialog
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
 import com.sportflow.app.ui.theme.SportFlowTextGray
 
 @Composable
-fun UserProfileScreen() {
+fun UserProfileScreen(onLogout: () -> Unit = {}) {
+    val langViewModel = LocalLanguageViewModel.current
+    val currentLanguage by langViewModel.language.collectAsState()
+    val notificationsEnabled by langViewModel.notificationsEnabled.collectAsState()
+    val profilePublic by langViewModel.profilePublic.collectAsState()
+    val showInRankings by langViewModel.showInRankings.collectAsState()
+    val locationEnabled by langViewModel.locationEnabled.collectAsState()
+    val context = LocalContext.current
+    var showLanguagePicker by remember { mutableStateOf(false) }
+    var showNotificationsDialog by remember { mutableStateOf(false) }
+    var showPrivacyDialog by remember { mutableStateOf(false) }
+    var showPasswordDialog by remember { mutableStateOf(false) }
+    var showPaymentDialog by remember { mutableStateOf(false) }
+    var showEditProfileDialog by remember { mutableStateOf(false) }
+
+    var userName by remember { mutableStateOf("Gonçalo Oliveira") }
+    var userEmail by remember { mutableStateOf("goncalo.oliveira@pro-athlete.pt") }
+    var userPhone by remember { mutableStateOf("+351 912 345 678") }
+    var userLocation by remember { mutableStateOf("Viana do Castelo, Portugal") }
+
+    if (showLanguagePicker) {
+        LanguagePickerDialog(
+            currentLanguage = currentLanguage,
+            onLanguageSelected = { lang -> langViewModel.setLanguage(lang, context) },
+            onDismiss = { showLanguagePicker = false }
+        )
+    }
+    if (showNotificationsDialog) {
+        NotificationsDialog(
+            enabled = notificationsEnabled,
+            currentLanguage = currentLanguage,
+            onToggle = { enabled -> langViewModel.setNotificationsEnabled(enabled, context) },
+            onDismiss = { showNotificationsDialog = false }
+        )
+    }
+    if (showPrivacyDialog) {
+        UserPrivacyDialog(
+            currentLanguage = currentLanguage,
+            profilePublic = profilePublic,
+            showInRankings = showInRankings,
+            locationEnabled = locationEnabled,
+            onProfilePublicToggle = { langViewModel.setProfilePublic(it, context) },
+            onShowInRankingsToggle = { langViewModel.setShowInRankings(it, context) },
+            onLocationToggle = { langViewModel.setLocationEnabled(it, context) },
+            onDismiss = { showPrivacyDialog = false }
+        )
+    }
+    if (showPasswordDialog) {
+        ChangePasswordDialog(
+            currentLanguage = currentLanguage,
+            onSave = { /* Save logic here */ },
+            onDismiss = { showPasswordDialog = false }
+        )
+    }
+
+    if (showPaymentDialog) {
+        PaymentDialog(
+            currentLanguage = currentLanguage,
+            onDismiss = { showPaymentDialog = false }
+        )
+    }
+
+    if (showEditProfileDialog) {
+        com.sportflow.app.ui.components.EditProfileDialog(
+            initialName = userName,
+            initialEmail = userEmail,
+            initialPhone = userPhone,
+            initialLocation = userLocation,
+            onSave = { newName, newEmail, newPhone, newLocation ->
+                userName = newName
+                userEmail = newEmail
+                userPhone = newPhone
+                userLocation = newLocation
+                showEditProfileDialog = false
+            },
+            onDismiss = { showEditProfileDialog = false }
+        )
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 24.dp, bottom = 32.dp),
@@ -73,7 +164,7 @@ fun UserProfileScreen() {
                         .clip(CircleShape)
                         .background(Color(0xFF047857)) // Forest green edit button
                         .align(Alignment.BottomEnd)
-                        .clickable { /* Handle edit profile picture */ },
+                        .clickable { showEditProfileDialog = true },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -97,7 +188,7 @@ fun UserProfileScreen() {
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Gonçalo Oliveira",
+                text = userName,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Black,
                 color = SportFlowDarkBlue
@@ -120,17 +211,17 @@ fun UserProfileScreen() {
             AccountDataItem(
                 icon = Icons.Default.Email,
                 title = "Email",
-                value = "goncalo.oliveira@pro-athlete.pt"
+                value = userEmail
             )
             AccountDataItem(
                 icon = Icons.Default.Phone,
                 title = "Telemóvel",
-                value = "+351 912 345 678"
+                value = userPhone
             )
             AccountDataItem(
                 icon = Icons.Default.Place,
                 title = "Localização",
-                value = "Viana do Castelo, Portugal"
+                value = userLocation
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -142,33 +233,36 @@ fun UserProfileScreen() {
 
             SettingsItem(
                 icon = Icons.Default.Notifications,
-                title = "Notificações",
-                subtitle = "Preferências de alerta",
-                onClick = { /* Navigate */ }
+                title = if (currentLanguage == AppLanguage.PT) "Notificações" else "Notifications",
+                subtitle = if (notificationsEnabled)
+                    (if (currentLanguage == AppLanguage.PT) "Ativadas" else "Enabled")
+                else
+                    (if (currentLanguage == AppLanguage.PT) "Desativadas" else "Disabled"),
+                onClick = { showNotificationsDialog = true }
             )
             SettingsItem(
                 icon = Icons.Default.Lock,
-                title = "Privacidade",
-                subtitle = "Controlo de visibilidade",
-                onClick = { /* Navigate */ }
+                title = if (currentLanguage == AppLanguage.PT) "Privacidade" else "Privacy",
+                subtitle = if (currentLanguage == AppLanguage.PT) "Controlo de visibilidade" else "Visibility control",
+                onClick = { showPrivacyDialog = true }
             )
             SettingsItem(
                 icon = Icons.Default.Key,
-                title = "Alterar Palavra-passe",
-                subtitle = "Atualizar credenciais",
-                onClick = { /* Navigate */ }
+                title = if (currentLanguage == AppLanguage.PT) "Alterar Palavra-passe" else "Change Password",
+                subtitle = if (currentLanguage == AppLanguage.PT) "Atualizar credenciais" else "Update credentials",
+                onClick = { showPasswordDialog = true }
             )
             SettingsItem(
                 icon = Icons.Default.CreditCard,
-                title = "Assinatura e Pagamentos",
-                subtitle = "Faturas e plano elite",
-                onClick = { /* Navigate */ }
+                title = if (currentLanguage == AppLanguage.PT) "Métodos de Pagamento" else "Payment Methods",
+                subtitle = if (currentLanguage == AppLanguage.PT) "Adicionar cartão ou MB Way" else "Add card or MB Way",
+                onClick = { showPaymentDialog = true }
             )
             SettingsItem(
                 icon = Icons.Default.Language,
-                title = "Selecione o seu Idioma",
-                subtitle = "Português (PT)",
-                onClick = { /* Navigate */ }
+                title = if (currentLanguage == AppLanguage.PT) "Selecione o seu Idioma" else "Select your Language",
+                subtitle = if (currentLanguage == AppLanguage.PT) "Português (PT)" else "English (EN)",
+                onClick = { showLanguagePicker = true }
             )
 
             Spacer(modifier = Modifier.height(28.dp))
@@ -177,7 +271,7 @@ fun UserProfileScreen() {
         // 4. Terminar Sessão (Sign Out) Button
         item {
             Button(
-                onClick = { /* Handle Sign Out */ },
+                onClick = onLogout,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)

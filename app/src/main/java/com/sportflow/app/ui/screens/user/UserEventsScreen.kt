@@ -24,6 +24,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
+import java.time.LocalDate
+import java.time.format.TextStyle
+import java.util.Locale
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 
 // Data model for Tournament Events
 data class TournamentEvent(
@@ -34,13 +39,67 @@ data class TournamentEvent(
     val vacanciesLeft: Int,
     val isSoldOut: Boolean,
     val sportType: String, // BASKETBALL, PADEL, SOCCER, TENNIS
-    val icon: ImageVector
+    val icon: ImageVector,
+    val localDate: LocalDate
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserEventsScreen() {
     var searchQuery by remember { mutableStateOf("") }
+    var selectedSportFilter by remember { mutableStateOf("Todas") }
+    var selectedAvailabilityFilter by remember { mutableStateOf("Todas") }
+    var showFilterDialog by remember { mutableStateOf(false) }
+    var selectedDateFilter by remember { mutableStateOf<LocalDate?>(null) }
+    var showCalendarDialog by remember { mutableStateOf(false) }
+
+    if (showFilterDialog) {
+        com.sportflow.app.ui.components.EventsFilterDialog(
+            initialSportFilter = selectedSportFilter,
+            initialAvailabilityFilter = selectedAvailabilityFilter,
+            onApplyFilters = { sport, availability ->
+                selectedSportFilter = sport
+                selectedAvailabilityFilter = availability
+                showFilterDialog = false
+            },
+            onDismiss = { showFilterDialog = false }
+        )
+    }
+
+    if (showCalendarDialog) {
+        com.sportflow.app.ui.components.CalendarDialog(
+            initialSelectedDate = selectedDateFilter,
+            onDateSelected = { date ->
+                selectedDateFilter = date
+                showCalendarDialog = false
+            },
+            onDismiss = { showCalendarDialog = false }
+        )
+    }
+    var selectedTournament by remember { mutableStateOf<TournamentEvent?>(null) }
+    var showPaymentDialogFor by remember { mutableStateOf<TournamentEvent?>(null) }
+
+    if (selectedTournament != null) {
+        com.sportflow.app.ui.components.TournamentEnrollDialog(
+            tournament = selectedTournament!!,
+            onEnroll = { 
+                showPaymentDialogFor = selectedTournament
+                selectedTournament = null
+            },
+            onDismiss = { selectedTournament = null }
+        )
+    }
+
+    if (showPaymentDialogFor != null) {
+        com.sportflow.app.ui.components.PaymentDialog(
+            currentLanguage = com.sportflow.app.model.AppLanguage.PT,
+            isCheckout = true,
+            onPaymentSuccess = {
+                // Here we would typically add it to the user's subscriptions
+            },
+            onDismiss = { showPaymentDialogFor = null }
+        )
+    }
 
     // Mock data for Tournament Events (matching the mockup exactly)
     val tournaments = remember {
@@ -53,7 +112,8 @@ fun UserEventsScreen() {
                 vacanciesLeft = 12,
                 isSoldOut = false,
                 sportType = "BASKETBALL",
-                icon = Icons.Default.SportsBasketball
+                icon = Icons.Default.SportsBasketball,
+                localDate = LocalDate.of(2024, 5, 15)
             ),
             TournamentEvent(
                 category = "PADEL • OPEN MISTO",
@@ -63,7 +123,8 @@ fun UserEventsScreen() {
                 vacanciesLeft = 4,
                 isSoldOut = false,
                 sportType = "PADEL",
-                icon = Icons.Default.SportsTennis
+                icon = Icons.Default.SportsTennis,
+                localDate = LocalDate.of(2024, 5, 22)
             ),
             TournamentEvent(
                 category = "FUTEBOL 7 • SÉRIE B",
@@ -73,7 +134,8 @@ fun UserEventsScreen() {
                 vacanciesLeft = 0,
                 isSoldOut = true,
                 sportType = "SOCCER",
-                icon = Icons.Default.SportsFootball
+                icon = Icons.Default.SportsFootball,
+                localDate = LocalDate.of(2024, 6, 5)
             ),
             TournamentEvent(
                 category = "TÉNIS • SINGULARES",
@@ -83,9 +145,36 @@ fun UserEventsScreen() {
                 vacanciesLeft = 8,
                 isSoldOut = false,
                 sportType = "TENNIS",
-                icon = Icons.Default.SportsTennis
+                icon = Icons.Default.SportsTennis,
+                localDate = LocalDate.of(2024, 6, 12)
             )
         )
+    }
+
+    val filteredTournaments = remember(searchQuery, selectedSportFilter, selectedAvailabilityFilter, selectedDateFilter, tournaments) {
+        tournaments.filter { tournament ->
+            val matchesSearch = if (searchQuery.isBlank()) true else {
+                tournament.title.contains(searchQuery, ignoreCase = true) ||
+                tournament.category.contains(searchQuery, ignoreCase = true) ||
+                tournament.location.contains(searchQuery, ignoreCase = true)
+            }
+            val matchesSport = if (selectedSportFilter == "Todas") true else {
+                when (selectedSportFilter) {
+                    "Basquetebol" -> tournament.sportType == "BASKETBALL"
+                    "Padel" -> tournament.sportType == "PADEL"
+                    "Futebol" -> tournament.sportType == "SOCCER"
+                    "Ténis" -> tournament.sportType == "TENNIS"
+                    else -> true
+                }
+            }
+            val matchesAvailability = if (selectedAvailabilityFilter == "Todas") true else {
+                if (selectedAvailabilityFilter == "Apenas com vagas") !tournament.isSoldOut else true
+            }
+            val matchesDate = if (selectedDateFilter == null) true else {
+                tournament.localDate == selectedDateFilter
+            }
+            matchesSearch && matchesSport && matchesAvailability && matchesDate
+        }
     }
 
     LazyColumn(
@@ -171,47 +260,186 @@ fun UserEventsScreen() {
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                Button(
-                    onClick = { /* Handle Filter trigger */ },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(42.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEFF6FF)),
-                    border = BorderStroke(0.5.dp, Color(0xFFDBEAFE))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                    Button(
+                        onClick = { showFilterDialog = true },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEFF6FF)),
+                        border = BorderStroke(0.5.dp, Color(0xFFDBEAFE))
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.FilterList,
-                            contentDescription = null,
-                            tint = Color(0xFF2563EB),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FilterList,
+                                contentDescription = null,
+                                tint = Color(0xFF2563EB),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "FILTROS",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF2563EB),
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = { showCalendarDialog = true },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEFF6FF)),
+                        border = BorderStroke(0.5.dp, Color(0xFFDBEAFE))
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DateRange,
+                                contentDescription = null,
+                                tint = Color(0xFF2563EB),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "CALENDÁRIO",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF2563EB),
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                    }
+                }
+
+                if (selectedSportFilter != "Todas" || selectedAvailabilityFilter != "Todas" || selectedDateFilter != null || searchQuery.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = "FILTROS",
+                            text = "Filtros ativos:",
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF2563EB),
-                            letterSpacing = 0.5.sp
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF64748B)
                         )
+                        
+                        if (searchQuery.isNotBlank()) {
+                            FilterBadge(
+                                text = "\"$searchQuery\"",
+                                onClear = { searchQuery = "" }
+                            )
+                        }
+                        
+                        if (selectedSportFilter != "Todas") {
+                            FilterBadge(
+                                text = selectedSportFilter,
+                                onClear = { selectedSportFilter = "Todas" }
+                            )
+                        }
+
+                        if (selectedAvailabilityFilter != "Todas") {
+                            FilterBadge(
+                                text = "Com vagas",
+                                onClear = { selectedAvailabilityFilter = "Todas" }
+                            )
+                        }
+                        
+                        if (selectedDateFilter != null) {
+                            val formattedDate = "${selectedDateFilter!!.dayOfMonth} ${selectedDateFilter!!.month.getDisplayName(TextStyle.SHORT, Locale.forLanguageTag("pt")).uppercase()}"
+                            FilterBadge(
+                                text = formattedDate,
+                                onClear = { selectedDateFilter = null }
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // Tournament Cards list
-        items(tournaments) { tournament ->
-            TournamentEventCard(tournament = tournament)
+        if (filteredTournaments.isEmpty()) {
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 40.dp, bottom = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = Color(0xFF94A3B8),
+                        modifier = Modifier.size(56.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Nenhum torneio encontrado",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SportFlowDarkBlue
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Tente alterar os termos da pesquisa ou limpe os filtros ativos.",
+                        fontSize = 12.sp,
+                        color = Color(0xFF64748B),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 32.dp)
+                    )
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Button(
+                        onClick = {
+                            searchQuery = ""
+                            selectedSportFilter = "Todas"
+                            selectedAvailabilityFilter = "Todas"
+                            selectedDateFilter = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEFF6FF)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Text(
+                            text = "Limpar Todos os Filtros",
+                            color = Color(0xFF2563EB),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        } else {
+            // Tournament Cards list
+            items(filteredTournaments) { tournament ->
+                TournamentEventCard(
+                    tournament = tournament,
+                    onEnrollClick = { selectedTournament = tournament }
+                )
+            }
         }
     }
 }
 
 @Composable
-fun TournamentEventCard(tournament: TournamentEvent) {
+fun TournamentEventCard(
+    tournament: TournamentEvent,
+    onEnrollClick: () -> Unit = {}
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -375,7 +603,7 @@ fun TournamentEventCard(tournament: TournamentEvent) {
                     }
                 } else {
                     Button(
-                        onClick = { /* Handle subscription trigger */ },
+                        onClick = onEnrollClick,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(46.dp),
@@ -411,4 +639,31 @@ fun TournamentEventCard(tournament: TournamentEvent) {
 @Composable
 fun UserEventsScreenPreview() {
     UserEventsScreen()
+}
+
+@Composable
+private fun FilterBadge(text: String, onClear: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFFEFF6FF))
+            .border(0.5.dp, Color(0xFFDBEAFE), RoundedCornerShape(8.dp))
+            .clickable { onClear() }
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = text,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF2563EB)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Icon(
+            imageVector = Icons.Default.Close,
+            contentDescription = "Limpar",
+            tint = Color(0xFF2563EB),
+            modifier = Modifier.size(12.dp)
+        )
+    }
 }

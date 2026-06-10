@@ -1,5 +1,9 @@
 package com.sportflow.app.ui.screens
 
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import com.sportflow.app.ui.components.SportFlowLoadingOverlay
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -42,8 +46,12 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit) {
     var error by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
     var selectedUserType by remember { mutableStateOf("ATLETA") } // "ATLETA", "ORGANIZADOR", "ADMIN"
+    var isLoading by remember { mutableStateOf(false) }
     
     val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val sharedPrefs = remember { context.getSharedPreferences("sportflow_prefs", android.content.Context.MODE_PRIVATE) }
 
     Box(
         modifier = Modifier
@@ -90,7 +98,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit) {
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Image(
-                            painter = painterResource(id = R.drawable.sportflowlogo),
+                            painter = painterResource(id = R.drawable.sportflow_logo),
                             contentDescription = "SportFlow Logo",
                             modifier = Modifier
                                 .size(28.dp)
@@ -304,7 +312,20 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit) {
                     // 6. ENTRAR NA ARENA Button
                     Button(
                         onClick = {
-                            if (email.isNotBlank() && password.isNotBlank()) onLoginSuccess() else error = true
+                            if (email.isNotBlank() && password.isNotBlank()) {
+                                coroutineScope.launch {
+                                    isLoading = true
+                                    sharedPrefs.edit()
+                                        .putBoolean("is_logged_in", true)
+                                        .putString("user_type", selectedUserType)
+                                        .apply()
+                                    delay(1500)
+                                    isLoading = false
+                                    onLoginSuccess()
+                                }
+                            } else {
+                                error = true
+                            }
                         },
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF047857)), // forest green
@@ -360,12 +381,12 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit) {
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         SocialLoginButton(
-                            icon = Icons.Default.Public, // Stylized Google globe/icon representation or painter resource
+                            iconRes = R.drawable.google_logo,
                             label = "Google",
                             modifier = Modifier.weight(1f)
                         )
                         SocialLoginButton(
-                            icon = Icons.Default.Share, // Stylized Facebook icon
+                            iconRes = R.drawable.facebook_logo,
                             label = "Facebook",
                             modifier = Modifier.weight(1f)
                         )
@@ -395,12 +416,15 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit) {
                 }
             }
         }
+        if (isLoading) {
+            SportFlowLoadingOverlay()
+        }
     }
 }
 
 @Composable
 fun SocialLoginButton(
-    icon: ImageVector,
+    iconRes: Int,
     label: String,
     modifier: Modifier = Modifier
 ) {
@@ -419,11 +443,10 @@ fun SocialLoginButton(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if (label == "Google") Color(0xFFEA4335) else Color(0xFF1877F2), // Google red, FB blue
-                modifier = Modifier.size(16.dp)
+            Image(
+                painter = painterResource(id = iconRes),
+                contentDescription = label,
+                modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(

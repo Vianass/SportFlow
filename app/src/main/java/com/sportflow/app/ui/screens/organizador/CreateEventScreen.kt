@@ -1,5 +1,8 @@
 package com.sportflow.app.ui.screens.organizador
 
+import com.sportflow.app.ui.components.SportFlowLoadingOverlay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,12 +40,16 @@ fun CreateEventScreen() {
     
     var modalidadeExpanded by remember { mutableStateOf(false) }
     var nivelExpanded by remember { mutableStateOf(false) }
+    
+    var isLoading by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 20.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = 20.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
         // 1. Screen Title
         item {
             Column(
@@ -469,7 +476,13 @@ fun CreateEventScreen() {
 
                     // Publicar Evento button
                     Button(
-                        onClick = { /* Publish event */ },
+                        onClick = {
+                            coroutineScope.launch {
+                                isLoading = true
+                                delay(1500)
+                                isLoading = false
+                            }
+                        },
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)), // Green publish button
                         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
@@ -484,7 +497,11 @@ fun CreateEventScreen() {
                 }
             }
         }
+    } // end LazyColumn
+    if (isLoading) {
+        SportFlowLoadingOverlay()
     }
+    } // end Box
 }
 
 @Composable

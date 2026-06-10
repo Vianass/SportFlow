@@ -26,7 +26,7 @@ import com.sportflow.app.ui.theme.SportFlowGreen
 import com.sportflow.app.ui.theme.SportFlowTextGray
 
 @Composable
-fun OrganizadorDashboardScreen() {
+fun OrganizadorDashboardScreen(onLogout: () -> Unit = {}) {
     var selectedTab by remember { mutableStateOf(0) } // Defaulting to tab 0 (Criar Evento)
 
     Scaffold(
@@ -47,7 +47,7 @@ fun OrganizadorDashboardScreen() {
             when (selectedTab) {
                 0 -> CreateEventScreen()
                 1 -> OrganizadorEventsScreen()
-                2 -> OrganizadorProfileScreen()
+                2 -> OrganizadorProfileScreen(onLogout = onLogout)
             }
         }
     }
@@ -68,7 +68,7 @@ fun SportFlowOrganizadorHeader() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Image(
-                painter = painterResource(id = R.drawable.sportflowlogo),
+                painter = painterResource(id = R.drawable.sportflow_logo),
                 contentDescription = "SportFlow Logo",
                 modifier = Modifier
                     .size(32.dp)

@@ -1,6 +1,8 @@
 package com.sportflow.app
 
 import com.sportflow.app.navigation.NavGraph
+import com.sportflow.app.model.AppLanguageViewModel
+import com.sportflow.app.model.LocalLanguageViewModel
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -13,11 +15,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,6 +52,7 @@ class MainViewModel : ViewModel() {
 class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
+    private val languageViewModel: AppLanguageViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
@@ -58,12 +64,17 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            SportFlowTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    NavGraph()
+            val context = LocalContext.current
+            SideEffect { languageViewModel.loadSavedLanguage(context) }
+
+            CompositionLocalProvider(LocalLanguageViewModel provides languageViewModel) {
+                SportFlowTheme {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
+                        NavGraph()
+                    }
                 }
             }
         }
@@ -99,7 +110,7 @@ fun MainScreen() {
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
-                        painter = painterResource(id = R.drawable.sportflowlogo),
+                        painter = painterResource(id = R.drawable.sportflow_logo),
                         contentDescription = "SportFlow Logo",
                         modifier = Modifier.size(150.dp)
                     )

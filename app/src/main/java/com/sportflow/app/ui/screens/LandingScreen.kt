@@ -72,7 +72,7 @@ fun LandingHeader(onNavigateToLogin: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Image(
-                painter = painterResource(id = R.drawable.sportflowlogo),
+                painter = painterResource(id = R.drawable.sportflow_logo),
                 contentDescription = "SportFlow Logo",
                 modifier = Modifier
                     .size(28.dp)
@@ -179,33 +179,16 @@ fun HeroSection(onNavigateToLogin: () -> Unit) {
             Spacer(modifier = Modifier.height(32.dp))
 
             // Sports Pitch Graphic representation
-            Box(
+            Image(
+                painter = painterResource(id = R.drawable.futsal_stadium),
+                contentDescription = "Futsal Stadium",
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(130.dp)
+                    .height(180.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White.copy(alpha = 0.03f))
-                    .border(0.5.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                // Stadium Pitch Vector outline styling
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.SportsSoccer,
-                        contentDescription = null,
-                        tint = SportFlowGreen.copy(alpha = 0.15f),
-                        modifier = Modifier.size(54.dp)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "ESTÁDIO SPORTFLOW",
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White.copy(alpha = 0.2f),
-                        letterSpacing = 1.5.sp
-                    )
-                }
-            }
+                    .border(0.5.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+            )
 
             Spacer(modifier = Modifier.height(32.dp))
 
@@ -274,7 +257,7 @@ fun FooterSection() {
         // Logo + Text Row
         Row(verticalAlignment = Alignment.CenterVertically) {
             Image(
-                painter = painterResource(id = R.drawable.sportflowlogo),
+                painter = painterResource(id = R.drawable.sportflow_logo),
                 contentDescription = "SportFlow Logo",
                 modifier = Modifier
                     .size(24.dp)

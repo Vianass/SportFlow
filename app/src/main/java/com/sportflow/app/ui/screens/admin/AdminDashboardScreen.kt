@@ -26,7 +26,7 @@ import com.sportflow.app.ui.theme.SportFlowGreen
 import com.sportflow.app.ui.theme.SportFlowTextGray
 
 @Composable
-fun AdminDashboardScreen() {
+fun AdminDashboardScreen(onLogout: () -> Unit = {}) {
     var selectedTab by remember { mutableStateOf(3) } // Defaulting to tab 3 (Perfil) to preview it first!
 
     Scaffold(
@@ -48,7 +48,7 @@ fun AdminDashboardScreen() {
                 0 -> AdminHomeScreen()
                 1 -> AdminEventsScreen()
                 2 -> AdminStatsScreen()
-                3 -> AdminProfileScreen()
+                3 -> AdminProfileScreen(onLogout = onLogout)
             }
         }
     }
@@ -69,7 +69,7 @@ fun SportFlowAdminHeader() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Image(
-                painter = painterResource(id = R.drawable.sportflowlogo),
+                painter = painterResource(id = R.drawable.sportflow_logo),
                 contentDescription = "SportFlow Logo",
                 modifier = Modifier
                     .size(32.dp)

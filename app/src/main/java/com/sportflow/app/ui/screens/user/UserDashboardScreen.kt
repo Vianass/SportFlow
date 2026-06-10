@@ -31,7 +31,7 @@ import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
 
 @Composable
-fun UserDashboardScreen() {
+fun UserDashboardScreen(onLogout: () -> Unit = {}) {
     var selectedTab by remember { mutableStateOf(1) } // Defaulting to tab 1 (Eventos)
 
     Scaffold(
@@ -50,10 +50,10 @@ fun UserDashboardScreen() {
                 .padding(paddingValues)
         ) {
             when (selectedTab) {
-                0 -> UserHomeScreen()
+                0 -> UserHomeScreen(onNavigateToEvents = { selectedTab = 1 })
                 1 -> UserEventsScreen()
                 2 -> UserSubscriptionsScreen()
-                3 -> UserProfileScreen()
+                3 -> UserProfileScreen(onLogout = onLogout)
             }
         }
     }
@@ -74,7 +74,7 @@ fun SportFlowHeader() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Image(
-                painter = painterResource(id = R.drawable.sportflowlogo),
+                painter = painterResource(id = R.drawable.sportflow_logo),
                 contentDescription = "SportFlow Logo",
                 modifier = Modifier
                     .size(32.dp)

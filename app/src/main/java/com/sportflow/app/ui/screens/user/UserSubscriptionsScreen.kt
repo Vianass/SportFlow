@@ -48,10 +48,19 @@ data class UserSubscription(
 fun UserSubscriptionsScreen() {
     // Interactive filter state: 0 = TODAS, 1 = ATIVAS, 2 = CONCLUÍDAS
     var selectedFilter by remember { mutableStateOf(0) }
+    var selectedSubscription by remember { mutableStateOf<UserSubscription?>(null) }
+    var showPaymentDialogFor by remember { mutableStateOf<UserSubscription?>(null) }
+
+    if (selectedSubscription != null) {
+        com.sportflow.app.ui.components.SubscriptionDetailsDialog(
+            subscription = selectedSubscription!!,
+            onDismiss = { selectedSubscription = null }
+        )
+    }
 
     // Mock data matching the mockup exactly
     val subscriptions = remember {
-        listOf(
+        androidx.compose.runtime.mutableStateListOf(
             UserSubscription(
                 title = "Padel Master Series",
                 subtitle = "Torneio Open de Lisboa",
@@ -78,8 +87,25 @@ fun UserSubscriptionsScreen() {
         )
     }
 
+    if (showPaymentDialogFor != null) {
+        com.sportflow.app.ui.components.PaymentDialog(
+            currentLanguage = com.sportflow.app.model.AppLanguage.PT,
+            isCheckout = true,
+            onPaymentSuccess = {
+                val index = subscriptions.indexOf(showPaymentDialogFor)
+                if (index != -1) {
+                    subscriptions[index] = subscriptions[index].copy(
+                        status = SubscriptionStatus.CONFIRMED,
+                        infoText = null
+                    )
+                }
+            },
+            onDismiss = { showPaymentDialogFor = null }
+        )
+    }
+
     // Dynamic filtering logic
-    val filteredSubscriptions = remember(selectedFilter, subscriptions) {
+    val filteredSubscriptions = remember(selectedFilter, subscriptions.toList()) {
         when (selectedFilter) {
             1 -> subscriptions.filter { it.status == SubscriptionStatus.CONFIRMED || it.status == SubscriptionStatus.PENDING }
             2 -> subscriptions.filter { it.status == SubscriptionStatus.FINISHED }
@@ -152,13 +178,21 @@ fun UserSubscriptionsScreen() {
 
         // List of Subscription Cards
         items(filteredSubscriptions) { subscription ->
-            SubscriptionCard(subscription = subscription)
+            SubscriptionCard(
+                subscription = subscription,
+                onViewDetails = { selectedSubscription = subscription },
+                onCheckout = { showPaymentDialogFor = subscription }
+            )
         }
     }
 }
 
 @Composable
-fun SubscriptionCard(subscription: UserSubscription) {
+fun SubscriptionCard(
+    subscription: UserSubscription,
+    onViewDetails: () -> Unit = {},
+    onCheckout: () -> Unit = {}
+) {
     // Dynamic styles based on status
     val cardBorderColor = if (subscription.status == SubscriptionStatus.PENDING) {
         BorderStroke(1.dp, Color(0xFF86EFAC)) // Green outline for pending attention
@@ -311,7 +345,7 @@ fun SubscriptionCard(subscription: UserSubscription) {
             when (subscription.status) {
                 SubscriptionStatus.CONFIRMED -> {
                     Button(
-                        onClick = { /* Handle details click */ },
+                        onClick = onViewDetails,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(44.dp),
@@ -329,7 +363,7 @@ fun SubscriptionCard(subscription: UserSubscription) {
                 }
                 SubscriptionStatus.PENDING -> {
                     Button(
-                        onClick = { /* Handle payment trigger */ },
+                        onClick = onCheckout,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(44.dp),

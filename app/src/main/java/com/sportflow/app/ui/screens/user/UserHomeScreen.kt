@@ -15,7 +15,10 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +33,9 @@ import androidx.compose.ui.unit.sp
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
 import com.sportflow.app.ui.theme.SportFlowTextGray
+import java.time.LocalDate
+import java.time.format.TextStyle
+import java.util.Locale
 
 // Data model for Live Events
 data class LiveEvent(
@@ -39,7 +45,8 @@ data class LiveEvent(
     val statusValue: String,
     val progress: Float,
     val icon: ImageVector,
-    val isDarkTheme: Boolean = false
+    val isDarkTheme: Boolean = false,
+    val type: String = "MATCH"
 )
 
 // Data model for Upcoming Events
@@ -49,17 +56,78 @@ data class UpcomingEvent(
     val title: String,
     val location: String,
     val time: String,
-    val categoryBadge: String
+    val categoryBadge: String,
+    val localDate: LocalDate
 )
 
 @Composable
-fun UserHomeScreen() {
+fun UserHomeScreen(onNavigateToEvents: () -> Unit = {}) {
+    var selectedLiveEvent by remember { mutableStateOf<LiveEvent?>(null) }
+    var selectedUpcomingEvent by remember { mutableStateOf<UpcomingEvent?>(null) }
+
+    var selectedSportFilter by remember { mutableStateOf("Todas") }
+    var selectedAvailabilityFilter by remember { mutableStateOf("Todas") }
+    var showFilterDialog by remember { mutableStateOf(false) }
+    var selectedDateFilter by remember { mutableStateOf<LocalDate?>(null) }
+    var showCalendarDialog by remember { mutableStateOf(false) }
+
+    if (showFilterDialog) {
+        com.sportflow.app.ui.components.EventsFilterDialog(
+            initialSportFilter = selectedSportFilter,
+            initialAvailabilityFilter = selectedAvailabilityFilter,
+            onApplyFilters = { sport, availability ->
+                selectedSportFilter = sport
+                selectedAvailabilityFilter = availability
+                showFilterDialog = false
+            },
+            onDismiss = { showFilterDialog = false }
+        )
+    }
+
+    if (showCalendarDialog) {
+        com.sportflow.app.ui.components.CalendarDialog(
+            initialSelectedDate = selectedDateFilter,
+            onDateSelected = { date ->
+                selectedDateFilter = date
+                showCalendarDialog = false
+            },
+            onDismiss = { showCalendarDialog = false }
+        )
+    }
+
+    if (selectedLiveEvent != null) {
+        com.sportflow.app.ui.components.LiveMatchDialog(
+            event = selectedLiveEvent!!,
+            onDismiss = { selectedLiveEvent = null }
+        )
+    }
+
+    if (selectedUpcomingEvent != null) {
+        val evt = selectedUpcomingEvent!!
+        val tournament = com.sportflow.app.ui.screens.user.TournamentEvent(
+            category = evt.categoryBadge + " • INSCRIÇÃO ABERTA",
+            title = evt.title,
+            date = "${evt.day} de ${evt.month}, ${evt.time}",
+            location = evt.location,
+            vacanciesLeft = 5,
+            isSoldOut = false,
+            sportType = evt.categoryBadge,
+            icon = Icons.Default.EmojiEvents,
+            localDate = evt.localDate
+        )
+        com.sportflow.app.ui.components.TournamentEnrollDialog(
+            tournament = tournament,
+            onEnroll = { selectedUpcomingEvent = null }, 
+            onDismiss = { selectedUpcomingEvent = null }
+        )
+    }
+
     // Mock data for Live Events
     val liveEvents = remember {
         listOf(
             LiveEvent(
-                category = "CAMPEONATO NACIONAL",
-                title = "Futebol: Sporting vs Benfica",
+                category = "LIGA AMADORA DE LISBOA",
+                title = "Futebol 7: Final do Torneio",
                 statusLabel = "Progresso do Jogo",
                 statusValue = "72'",
                 progress = 0.8f,
@@ -73,7 +141,8 @@ fun UserHomeScreen() {
                 statusValue = "Em curso",
                 progress = 0.45f,
                 icon = Icons.Default.DirectionsRun,
-                isDarkTheme = true
+                isDarkTheme = true,
+                type = "RACE"
             ),
             LiveEvent(
                 category = "OPEN DE TÉNIS DE BRAGA",
@@ -93,28 +162,49 @@ fun UserHomeScreen() {
             UpcomingEvent(
                 day = "24",
                 month = "SET",
-                title = "Taça de Portugal: Marítimo vs Porto",
-                location = "Estádio do Bessa, Porto",
-                time = "20:45",
-                categoryBadge = "FUTEBOL"
+                title = "Torneio Open de Padel",
+                location = "Lisbon Racket Centre",
+                time = "10:00",
+                categoryBadge = "PADEL",
+                localDate = LocalDate.of(2024, 9, 24)
             ),
             UpcomingEvent(
                 day = "02",
                 month = "OUT",
-                title = "Campeonato Regional de Natação",
-                location = "Piscina Olímpica do Jamor",
-                time = "09:00",
-                categoryBadge = "NATAÇÃO"
+                title = "Liga de Futsal Universitária",
+                location = "Pavilhão Desportivo da ESTG",
+                time = "14:30",
+                categoryBadge = "FUTSAL",
+                localDate = LocalDate.of(2024, 10, 2)
             ),
             UpcomingEvent(
                 day = "15",
                 month = "OUT",
-                title = "Volta ao Algarve em Ciclismo",
-                location = "Etapa 3 - Vilamoura",
-                time = "11:30",
-                categoryBadge = "CICLISMO"
+                title = "Meia Maratona do Douro",
+                location = "Ribeira do Porto",
+                time = "09:00",
+                categoryBadge = "ATLETISMO",
+                localDate = LocalDate.of(2024, 10, 15)
             )
         )
+    }
+
+    val filteredUpcomingEvents = remember(selectedSportFilter, selectedAvailabilityFilter, selectedDateFilter, upcomingEvents) {
+        upcomingEvents.filter { event ->
+            val matchesSport = if (selectedSportFilter == "Todas") true else {
+                when (selectedSportFilter) {
+                    "Basquetebol" -> event.categoryBadge == "BASKETBALL"
+                    "Padel" -> event.categoryBadge == "PADEL"
+                    "Futebol" -> event.categoryBadge == "FUTSAL" || event.categoryBadge == "FUTEBOL"
+                    "Ténis" -> event.categoryBadge == "TENNIS" || event.categoryBadge == "TÉNIS"
+                    else -> event.categoryBadge.contains(selectedSportFilter, ignoreCase = true)
+                }
+            }
+            val matchesDate = if (selectedDateFilter == null) true else {
+                event.localDate == selectedDateFilter
+            }
+            matchesSport && matchesDate
+        }
     }
 
     LazyColumn(
@@ -131,12 +221,12 @@ fun UserHomeScreen() {
             SectionHeader(
                 title = "Eventos a Decorrer",
                 isLive = true,
-                onViewAllClick = { /* Handle View All */ }
+                onViewAllClick = onNavigateToEvents
             )
         }
 
         items(liveEvents) { event ->
-            LiveEventCard(event = event)
+            LiveEventCard(event = event, onClick = { selectedLiveEvent = event })
         }
 
         // 3. Próximos Eventos (Upcoming Events) Section
@@ -145,12 +235,97 @@ fun UserHomeScreen() {
             SectionHeader(
                 title = "Próximos Eventos",
                 isLive = false,
-                onViewAllClick = { /* Handle Filters */ }
+                onFilterClick = { showFilterDialog = true },
+                onCalendarClick = { showCalendarDialog = true }
             )
         }
 
-        items(upcomingEvents) { event ->
-            UpcomingEventCard(event = event)
+        if (selectedSportFilter != "Todas" || selectedDateFilter != null) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Filtros ativos:",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF64748B)
+                    )
+                    
+                    if (selectedSportFilter != "Todas") {
+                        FilterBadge(
+                            text = selectedSportFilter,
+                            onClear = { selectedSportFilter = "Todas" }
+                        )
+                    }
+                    
+                    if (selectedDateFilter != null) {
+                        val formattedDate = "${selectedDateFilter!!.dayOfMonth} ${selectedDateFilter!!.month.getDisplayName(TextStyle.SHORT, Locale.forLanguageTag("pt")).uppercase()}"
+                        FilterBadge(
+                            text = formattedDate,
+                            onClear = { selectedDateFilter = null }
+                        )
+                    }
+                }
+            }
+        }
+
+        if (filteredUpcomingEvents.isEmpty()) {
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = Color(0xFF94A3B8),
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Nenhum evento encontrado",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SportFlowDarkBlue
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Tente alterar os filtros selecionados ou limpe os filtros ativos.",
+                        fontSize = 12.sp,
+                        color = Color(0xFF64748B),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = {
+                            selectedSportFilter = "Todas"
+                            selectedDateFilter = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEFF6FF)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Text(
+                            text = "Limpar Filtros",
+                            color = Color(0xFF2563EB),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        } else {
+            items(filteredUpcomingEvents) { event ->
+                UpcomingEventCard(event = event, onEnrollClick = { selectedUpcomingEvent = event })
+            }
         }
     }
 }
@@ -236,7 +411,9 @@ fun PromoBanner() {
 fun SectionHeader(
     title: String,
     isLive: Boolean,
-    onViewAllClick: () -> Unit
+    onViewAllClick: () -> Unit = {},
+    onFilterClick: () -> Unit = {},
+    onCalendarClick: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -293,7 +470,7 @@ fun SectionHeader(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
-                    onClick = onViewAllClick,
+                    onClick = onFilterClick,
                     modifier = Modifier
                         .size(32.dp)
                         .clip(RoundedCornerShape(8.dp))
@@ -307,7 +484,7 @@ fun SectionHeader(
                     )
                 }
                 IconButton(
-                    onClick = onViewAllClick,
+                    onClick = onCalendarClick,
                     modifier = Modifier
                         .size(32.dp)
                         .clip(RoundedCornerShape(8.dp))
@@ -326,7 +503,34 @@ fun SectionHeader(
 }
 
 @Composable
-fun LiveEventCard(event: LiveEvent) {
+private fun FilterBadge(text: String, onClear: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFFEFF6FF))
+            .border(0.5.dp, Color(0xFFDBEAFE), RoundedCornerShape(8.dp))
+            .clickable { onClear() }
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = text,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF2563EB)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Icon(
+            imageVector = Icons.Default.Close,
+            contentDescription = "Limpar",
+            tint = Color(0xFF2563EB),
+            modifier = Modifier.size(12.dp)
+        )
+    }
+}
+
+@Composable
+fun LiveEventCard(event: LiveEvent, onClick: () -> Unit = {}) {
     val cardBg = if (event.isDarkTheme) SportFlowDarkBlue else Color.White
     val textPrimary = if (event.isDarkTheme) Color.White else SportFlowDarkBlue
     val textSecondary = if (event.isDarkTheme) SportFlowGreen else Color(0xFF64748B)
@@ -334,7 +538,8 @@ fun LiveEventCard(event: LiveEvent) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = cardBg),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -414,7 +619,7 @@ fun LiveEventCard(event: LiveEvent) {
 }
 
 @Composable
-fun UpcomingEventCard(event: UpcomingEvent) {
+fun UpcomingEventCard(event: UpcomingEvent, onEnrollClick: () -> Unit = {}) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -536,7 +741,7 @@ fun UpcomingEventCard(event: UpcomingEvent) {
                             .size(28.dp)
                             .clip(CircleShape)
                             .background(SportFlowGreen)
-                            .clickable { /* Handle action */ },
+                            .clickable { onEnrollClick() },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
