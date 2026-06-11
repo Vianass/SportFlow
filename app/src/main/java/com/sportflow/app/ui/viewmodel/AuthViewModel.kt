@@ -27,10 +27,14 @@ class AuthViewModel(
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
-    fun login(email: String, password: String) {
+    /**
+     * @param selectedRole O cargo selecionado pelo utilizador no UI (ex: "ATLETA", "ORGANIZADOR")
+     */
+    fun login(email: String, password: String, selectedRole: String) {
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             try {
+                // 1. Tentar autenticação básica
                 SupabaseProvider.client.auth.signInWith(Email) {
                     this.email = email
                     this.password = password
@@ -38,16 +42,27 @@ class AuthViewModel(
                 
                 val user = SupabaseProvider.client.auth.currentUserOrNull()
                 if (user != null) {
+                    // 2. Procurar o perfil real na BD
                     val profile = profilesRepository.getProfile(user.id)
-                    // Mapeamos de volta para o que o UI espera se necessário
                     val dbRole = profile?.papel ?: "JOGADOR"
-                    val uiRole = if (dbRole == "JOGADOR") "ATLETA" else dbRole
-                    _authState.value = AuthState.Success(uiRole)
+                    
+                    // 3. Mapear UI "ATLETA" para DB "JOGADOR" para comparação
+                    val normalizedSelectedRole = if (selectedRole == "ATLETA") "JOGADOR" else selectedRole
+                    
+                    // 4. Validar se os cargos coincidem
+                    if (dbRole == normalizedSelectedRole) {
+                        _authState.value = AuthState.Success(selectedRole)
+                    } else {
+                        // Se não coincidir, fazemos logout imediato por segurança
+                        SupabaseProvider.client.auth.signOut()
+                        _authState.value = AuthState.Error("Acesso negado: o perfil selecionado não é válido para esta conta.")
+                    }
                 } else {
                     _authState.value = AuthState.Error("Utilizador não encontrado")
                 }
             } catch (e: Exception) {
-                _authState.value = AuthState.Error(e.message ?: "Erro ao iniciar sessão")
+                e.printStackTrace()
+                _authState.value = AuthState.Error("Email ou palavra-passe incorretos")
             }
         }
     }
@@ -56,23 +71,20 @@ class AuthViewModel(
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             try {
-                // Mapear ATLETA para JOGADOR para coincidir com o CHECK do SQL
                 val dbRole = if (role == "ATLETA") "JOGADOR" else role
 
                 SupabaseProvider.client.auth.signUpWith(Email) {
                     this.email = email
                     this.password = password
-                    // Metadados EXATOS para o teu Trigger public.handle_new_user()
                     data = buildJsonObject {
                         put("nome", name)
                         put("papel", dbRole)
                     }
                 }
                 
-                // O perfil é criado automaticamente pelo Trigger on_auth_user_created
                 _authState.value = AuthState.Success(role)
             } catch (e: Exception) {
-                e.printStackTrace() // Ver no Logcat
+                e.printStackTrace()
                 _authState.value = AuthState.Error(e.message ?: "Erro ao criar conta")
             }
         }

@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sportflow.app.model.AppLanguage
 import com.sportflow.app.model.LocalLanguageViewModel
 import com.sportflow.app.ui.components.ChangePasswordDialog
@@ -38,10 +39,14 @@ import com.sportflow.app.ui.components.PaymentDialog
 import com.sportflow.app.ui.components.UserPrivacyDialog
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
-import com.sportflow.app.ui.theme.SportFlowTextGray
+import com.sportflow.app.ui.viewmodel.ProfileState
+import com.sportflow.app.ui.viewmodel.ProfileViewModel
 
 @Composable
-fun UserProfileScreen(onLogout: () -> Unit = {}) {
+fun UserProfileScreen(
+    onLogout: () -> Unit = {},
+    viewModel: ProfileViewModel = viewModel()
+) {
     val langViewModel = LocalLanguageViewModel.current
     val currentLanguage by langViewModel.language.collectAsState()
     val notificationsEnabled by langViewModel.notificationsEnabled.collectAsState()
@@ -49,17 +54,14 @@ fun UserProfileScreen(onLogout: () -> Unit = {}) {
     val showInRankings by langViewModel.showInRankings.collectAsState()
     val locationEnabled by langViewModel.locationEnabled.collectAsState()
     val context = LocalContext.current
+    
+    val profileState by viewModel.profileState.collectAsState()
+
     var showLanguagePicker by remember { mutableStateOf(false) }
     var showNotificationsDialog by remember { mutableStateOf(false) }
     var showPrivacyDialog by remember { mutableStateOf(false) }
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showPaymentDialog by remember { mutableStateOf(false) }
-    var showEditProfileDialog by remember { mutableStateOf(false) }
-
-    var userName by remember { mutableStateOf("Gonçalo Oliveira") }
-    var userEmail by remember { mutableStateOf("goncalo.oliveira@pro-athlete.pt") }
-    var userPhone by remember { mutableStateOf("+351 912 345 678") }
-    var userLocation by remember { mutableStateOf("Viana do Castelo, Portugal") }
 
     if (showLanguagePicker) {
         LanguagePickerDialog(
@@ -103,201 +105,165 @@ fun UserProfileScreen(onLogout: () -> Unit = {}) {
         )
     }
 
-    if (showEditProfileDialog) {
-        com.sportflow.app.ui.components.EditProfileDialog(
-            initialName = userName,
-            initialEmail = userEmail,
-            initialPhone = userPhone,
-            initialLocation = userLocation,
-            onSave = { newName, newEmail, newPhone, newLocation ->
-                userName = newName
-                userEmail = newEmail
-                userPhone = newPhone
-                userLocation = newLocation
-                showEditProfileDialog = false
-            },
-            onDismiss = { showEditProfileDialog = false }
-        )
-    }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 24.dp, bottom = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        // 1. Profile Avatar & Basic Info Card
-        item {
-            Box(
-                modifier = Modifier
-                    .size(130.dp)
-                    .padding(4.dp)
-            ) {
-                // Avatar Card Box
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    Color(0xFF3B82F6),
-                                    SportFlowDarkBlue
-                                )
-                            )
-                        )
-                        .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(24.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    // Stylized user portrait vector silhouette
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.9f),
-                        modifier = Modifier.size(75.dp)
-                    )
-                }
-
-                // Green Edit Pencil Button (Bottom Right)
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF047857)) // Forest green edit button
-                        .align(Alignment.BottomEnd)
-                        .clickable { showEditProfileDialog = true },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Editar Foto",
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
+    when (profileState) {
+        is ProfileState.Loading -> {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = SportFlowGreen)
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // User Profile Badges & Name
-            Text(
-                text = "ATLETA ELITE",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF16A34A),
-                letterSpacing = 0.5.sp
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = userName,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Black,
-                color = SportFlowDarkBlue
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "#ESP-2930",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color(0xFF64748B)
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
         }
-
-        // 2. DADOS DA CONTA (Account Data) Section
-        item {
-            SectionTitle(title = "DADOS DA CONTA")
-
-            AccountDataItem(
-                icon = Icons.Default.Email,
-                title = "Email",
-                value = userEmail
-            )
-            AccountDataItem(
-                icon = Icons.Default.Phone,
-                title = "Telemóvel",
-                value = userPhone
-            )
-            AccountDataItem(
-                icon = Icons.Default.Place,
-                title = "Localização",
-                value = userLocation
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
+        is ProfileState.Error -> {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(text = (profileState as ProfileState.Error).message, color = Color.Red)
+            }
         }
-
-        // 3. CONFIGURAÇÕES (Settings) Section
-        item {
-            SectionTitle(title = "CONFIGURAÇÕES")
-
-            SettingsItem(
-                icon = Icons.Default.Notifications,
-                title = if (currentLanguage == AppLanguage.PT) "Notificações" else "Notifications",
-                subtitle = if (notificationsEnabled)
-                    (if (currentLanguage == AppLanguage.PT) "Ativadas" else "Enabled")
-                else
-                    (if (currentLanguage == AppLanguage.PT) "Desativadas" else "Disabled"),
-                onClick = { showNotificationsDialog = true }
-            )
-            SettingsItem(
-                icon = Icons.Default.Lock,
-                title = if (currentLanguage == AppLanguage.PT) "Privacidade" else "Privacy",
-                subtitle = if (currentLanguage == AppLanguage.PT) "Controlo de visibilidade" else "Visibility control",
-                onClick = { showPrivacyDialog = true }
-            )
-            SettingsItem(
-                icon = Icons.Default.Key,
-                title = if (currentLanguage == AppLanguage.PT) "Alterar Palavra-passe" else "Change Password",
-                subtitle = if (currentLanguage == AppLanguage.PT) "Atualizar credenciais" else "Update credentials",
-                onClick = { showPasswordDialog = true }
-            )
-            SettingsItem(
-                icon = Icons.Default.CreditCard,
-                title = if (currentLanguage == AppLanguage.PT) "Métodos de Pagamento" else "Payment Methods",
-                subtitle = if (currentLanguage == AppLanguage.PT) "Adicionar cartão ou MB Way" else "Add card or MB Way",
-                onClick = { showPaymentDialog = true }
-            )
-            SettingsItem(
-                icon = Icons.Default.Language,
-                title = if (currentLanguage == AppLanguage.PT) "Selecione o seu Idioma" else "Select your Language",
-                subtitle = if (currentLanguage == AppLanguage.PT) "Português (PT)" else "English (EN)",
-                onClick = { showLanguagePicker = true }
-            )
-
-            Spacer(modifier = Modifier.height(28.dp))
-        }
-
-        // 4. Terminar Sessão (Sign Out) Button
-        item {
-            Button(
-                onClick = onLogout,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .height(48.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFFEE2E2), // Light red/pink background
-                    contentColor = Color(0xFF991B1B) // Dark red text
-                )
+        is ProfileState.Success -> {
+            val profile = (profileState as ProfileState.Success).profile
+            
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(top = 24.dp, bottom = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                        contentDescription = "Sair",
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
+                // 1. Profile Avatar & Basic Info Card
+                item {
+                    Box(
+                        modifier = Modifier
+                            .size(130.dp)
+                            .padding(4.dp)
+                    ) {
+                        // Avatar Card Box
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(
+                                    Brush.verticalGradient(
+                                        listOf(
+                                            Color(0xFF3B82F6),
+                                            SportFlowDarkBlue
+                                        )
+                                    )
+                                )
+                                .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(24.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.9f),
+                                modifier = Modifier.size(75.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // User Profile Badges & Name
                     Text(
-                        text = "Terminar Sessão",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.ExtraBold,
+                        text = if (profile.papel == "JOGADOR") "ATLETA" else profile.papel,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF16A34A),
                         letterSpacing = 0.5.sp
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = profile.nome,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Black,
+                        color = SportFlowDarkBlue
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+
+                // 2. DADOS DA CONTA (Account Data) Section
+                item {
+                    SectionTitle(title = "DADOS DA CONTA")
+
+                    AccountDataItem(
+                        icon = Icons.Default.Email,
+                        title = "Email",
+                        value = profile.email
+                    )
+                    
+                    profile.metodoPagamento?.let { 
+                        AccountDataItem(
+                            icon = Icons.Default.CreditCard,
+                            title = "Método de Pagamento",
+                            value = it
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                // 3. CONFIGURAÇÕES (Settings) Section
+                item {
+                    SectionTitle(title = "CONFIGURAÇÕES")
+
+                    SettingsItem(
+                        icon = Icons.Default.Notifications,
+                        title = if (currentLanguage == AppLanguage.PT) "Notificações" else "Notifications",
+                        subtitle = if (notificationsEnabled)
+                            (if (currentLanguage == AppLanguage.PT) "Ativadas" else "Enabled")
+                        else
+                            (if (currentLanguage == AppLanguage.PT) "Desativadas" else "Disabled"),
+                        onClick = { showNotificationsDialog = true }
+                    )
+                    SettingsItem(
+                        icon = Icons.Default.Lock,
+                        title = if (currentLanguage == AppLanguage.PT) "Privacidade" else "Privacy",
+                        subtitle = if (currentLanguage == AppLanguage.PT) "Controlo de visibilidade" else "Visibility control",
+                        onClick = { showPrivacyDialog = true }
+                    )
+                    SettingsItem(
+                        icon = Icons.Default.Key,
+                        title = if (currentLanguage == AppLanguage.PT) "Alterar Palavra-passe" else "Change Password",
+                        subtitle = if (currentLanguage == AppLanguage.PT) "Atualizar credenciais" else "Update credentials",
+                        onClick = { showPasswordDialog = true }
+                    )
+                    SettingsItem(
+                        icon = Icons.Default.Language,
+                        title = if (currentLanguage == AppLanguage.PT) "Selecione o seu Idioma" else "Select your Language",
+                        subtitle = if (currentLanguage == AppLanguage.PT) "Português (PT)" else "English (EN)",
+                        onClick = { showLanguagePicker = true }
+                    )
+
+                    Spacer(modifier = Modifier.height(28.dp))
+                }
+
+                // 4. Terminar Sessão (Sign Out) Button
+                item {
+                    Button(
+                        onClick = onLogout,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp)
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFEE2E2),
+                            contentColor = Color(0xFF991B1B)
+                        )
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                                contentDescription = "Sair",
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Terminar Sessão",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -315,7 +281,7 @@ fun SectionTitle(title: String) {
             text = title,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF94A3B8), // Slate gray subheadings
+            color = Color(0xFF94A3B8),
             letterSpacing = 1.sp
         )
     }
@@ -341,7 +307,6 @@ fun AccountDataItem(
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icon Square container
             Box(
                 modifier = Modifier
                     .size(38.dp)
@@ -359,7 +324,6 @@ fun AccountDataItem(
 
             Spacer(modifier = Modifier.width(14.dp))
 
-            // Information block
             Column {
                 Text(
                     text = title,
@@ -400,7 +364,6 @@ fun SettingsItem(
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icon Square container
             Box(
                 modifier = Modifier
                     .size(38.dp)
@@ -418,7 +381,6 @@ fun SettingsItem(
 
             Spacer(modifier = Modifier.width(14.dp))
 
-            // Information block
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
@@ -434,7 +396,6 @@ fun SettingsItem(
                 )
             }
 
-            // Chevron Right arrow icon
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = "Abrir",

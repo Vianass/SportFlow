@@ -332,7 +332,7 @@ fun LoginScreen(
                     Button(
                         onClick = {
                             if (email.isNotBlank() && password.isNotBlank()) {
-                                viewModel.login(email, password)
+                                viewModel.login(email, password, selectedUserType)
                             } else {
                                 error = true
                             }
