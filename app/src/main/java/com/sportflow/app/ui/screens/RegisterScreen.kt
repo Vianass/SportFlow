@@ -65,12 +65,18 @@ fun RegisterScreen(
 
     LaunchedEffect(authState) {
         if (authState is AuthState.Success) {
-            val role = (authState as AuthState.Success).role
-            sharedPrefs.edit()
-                .putBoolean("is_logged_in", true)
-                .putString("user_type", role)
-                .apply()
-            onRegisterSuccess()
+            val success = authState as AuthState.Success
+            if (success.isPending) {
+                // Se estiver pendente, não navegamos para a Home, voltamos para o login
+                // e o utilizador terá de esperar
+                onNavigateToLogin()
+            } else {
+                sharedPrefs.edit()
+                    .putBoolean("is_logged_in", true)
+                    .putString("user_type", success.role)
+                    .apply()
+                onRegisterSuccess()
+            }
         }
     }
 
