@@ -120,7 +120,9 @@ fun TournamentEnrollDialog(
                     Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFD97706), modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Restam apenas ${tournament.vacanciesLeft} vagas! Inscreve-te rápido.",
+                        text = tournament.vacanciesLeft?.let {
+                            "Restam apenas $it vagas! Inscreve-te rápido."
+                        } ?: "A disponibilidade será confirmada no momento da inscrição.",
                         fontSize = 11.sp,
                         color = Color(0xFFB45309),
                         fontWeight = FontWeight.Bold

@@ -8,7 +8,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,6 +28,9 @@ import java.time.format.TextStyle
 import java.util.Locale
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.sportflow.app.model.Tournament
+import java.time.OffsetDateTime
 
 // Data model for Tournament Events
 data class TournamentEvent(
@@ -36,7 +38,7 @@ data class TournamentEvent(
     val title: String,
     val date: String,
     val location: String,
-    val vacanciesLeft: Int,
+    val vacanciesLeft: Int?,
     val isSoldOut: Boolean,
     val sportType: String, // BASKETBALL, PADEL, SOCCER, TENNIS
     val icon: ImageVector,
@@ -45,13 +47,17 @@ data class TournamentEvent(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun UserEventsScreen() {
+fun UserEventsScreen(
+    viewModel: UserEventsViewModel = viewModel()
+) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedSportFilter by remember { mutableStateOf("Todas") }
     var selectedAvailabilityFilter by remember { mutableStateOf("Todas") }
     var showFilterDialog by remember { mutableStateOf(false) }
     var selectedDateFilter by remember { mutableStateOf<LocalDate?>(null) }
     var showCalendarDialog by remember { mutableStateOf(false) }
+
+    val uiState by viewModel.uiState.collectAsState()
 
     if (showFilterDialog) {
         com.sportflow.app.ui.components.EventsFilterDialog(
@@ -82,7 +88,7 @@ fun UserEventsScreen() {
     if (selectedTournament != null) {
         com.sportflow.app.ui.components.TournamentEnrollDialog(
             tournament = selectedTournament!!,
-            onEnroll = { 
+            onEnroll = {
                 showPaymentDialogFor = selectedTournament
                 selectedTournament = null
             },
@@ -101,54 +107,8 @@ fun UserEventsScreen() {
         )
     }
 
-    // Mock data for Tournament Events (matching the mockup exactly)
-    val tournaments = remember {
-        listOf(
-            TournamentEvent(
-                category = "BASQUETEBOL • LIGA PRO",
-                title = "Master Cup Lisboa 2024",
-                date = "15 MAIO, 2024",
-                location = "Arena 2, Lisboa",
-                vacanciesLeft = 12,
-                isSoldOut = false,
-                sportType = "BASKETBALL",
-                icon = Icons.Default.SportsBasketball,
-                localDate = LocalDate.of(2024, 5, 15)
-            ),
-            TournamentEvent(
-                category = "PADEL • OPEN MISTO",
-                title = "Porto Padel Challenge",
-                date = "22 MAIO, 2024",
-                location = "Clube Padel Norte",
-                vacanciesLeft = 4,
-                isSoldOut = false,
-                sportType = "PADEL",
-                icon = Icons.Default.SportsTennis,
-                localDate = LocalDate.of(2024, 5, 22)
-            ),
-            TournamentEvent(
-                category = "FUTEBOL 7 • SÉRIE B",
-                title = "Taça dos Campeões",
-                date = "05 JUNHO, 2024",
-                location = "Estádio Universitário",
-                vacanciesLeft = 0,
-                isSoldOut = true,
-                sportType = "SOCCER",
-                icon = Icons.Default.SportsFootball,
-                localDate = LocalDate.of(2024, 6, 5)
-            ),
-            TournamentEvent(
-                category = "TÉNIS • SINGULARES",
-                title = "Algarve Tennis Open",
-                date = "12 JUNHO, 2024",
-                location = "Vilamoura Academy",
-                vacanciesLeft = 8,
-                isSoldOut = false,
-                sportType = "TENNIS",
-                icon = Icons.Default.SportsTennis,
-                localDate = LocalDate.of(2024, 6, 12)
-            )
-        )
+    val tournaments = remember(uiState.tournaments) {
+        uiState.tournaments.map { it.toTournamentEvent() }
     }
 
     val filteredTournaments = remember(searchQuery, selectedSportFilter, selectedAvailabilityFilter, selectedDateFilter, tournaments) {
@@ -175,6 +135,59 @@ fun UserEventsScreen() {
             }
             matchesSearch && matchesSport && matchesAvailability && matchesDate
         }
+    }
+
+    if (uiState.isLoading) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = SportFlowGreen)
+        }
+        return
+    }
+
+    if (uiState.errorMessage != null) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.ErrorOutline,
+                contentDescription = null,
+                tint = Color(0xFFDC2626),
+                modifier = Modifier.size(48.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "Erro ao carregar torneios",
+                fontWeight = FontWeight.Bold,
+                color = SportFlowDarkBlue
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = uiState.errorMessage ?: "Erro desconhecido.",
+                color = Color(0xFF64748B),
+                fontSize = 13.sp
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Button(
+                onClick = viewModel::loadTournaments,
+                colors = ButtonDefaults.buttonColors(containerColor = SportFlowGreen)
+            ) {
+                Text("Tentar novamente")
+            }
+        }
+        return
     }
 
     LazyColumn(
@@ -230,12 +243,12 @@ fun UserEventsScreen() {
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { 
+                    placeholder = {
                         Text(
-                            "Procurar torneios ou modalidades...", 
-                            fontSize = 13.sp, 
+                            "Procurar torneios ou modalidades...",
+                            fontSize = 13.sp,
                             color = Color(0xFF94A3B8)
-                        ) 
+                        )
                     },
                     leadingIcon = {
                         Icon(
@@ -338,14 +351,14 @@ fun UserEventsScreen() {
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF64748B)
                         )
-                        
+
                         if (searchQuery.isNotBlank()) {
                             FilterBadge(
                                 text = "\"$searchQuery\"",
                                 onClear = { searchQuery = "" }
                             )
                         }
-                        
+
                         if (selectedSportFilter != "Todas") {
                             FilterBadge(
                                 text = selectedSportFilter,
@@ -359,7 +372,7 @@ fun UserEventsScreen() {
                                 onClear = { selectedAvailabilityFilter = "Todas" }
                             )
                         }
-                        
+
                         if (selectedDateFilter != null) {
                             val formattedDate = "${selectedDateFilter!!.dayOfMonth} ${selectedDateFilter!!.month.getDisplayName(TextStyle.SHORT, Locale.forLanguageTag("pt")).uppercase()}"
                             FilterBadge(
@@ -478,7 +491,7 @@ fun TournamentEventCard(
                     )
                 }
 
-                if (!tournament.isSoldOut) {
+                if (!tournament.isSoldOut && tournament.vacanciesLeft != null) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
@@ -633,6 +646,44 @@ fun TournamentEventCard(
             }
         }
     }
+}
+
+private fun Tournament.toTournamentEvent(): TournamentEvent {
+    val localDate = parseTournamentDate(startDate)
+
+    return TournamentEvent(
+        category = status.uppercase(),
+        title = name,
+        date = localDate?.formatTournamentDate() ?: startDate,
+        location = "Local a definir",
+        vacanciesLeft = null,
+        isSoldOut = status.equals("esgotado", ignoreCase = true) ||
+                status.equals("fechado", ignoreCase = true) ||
+                status.equals("terminado", ignoreCase = true) ||
+                status.equals("cancelado", ignoreCase = true),
+        sportType = "GENERIC",
+        icon = Icons.Default.EmojiEvents,
+        localDate = localDate ?: LocalDate.now()
+    )
+}
+
+private fun parseTournamentDate(value: String): LocalDate? {
+    return runCatching {
+        OffsetDateTime.parse(value).toLocalDate()
+    }.getOrElse {
+        runCatching {
+            LocalDate.parse(value)
+        }.getOrNull()
+    }
+}
+
+private fun LocalDate.formatTournamentDate(): String {
+    val month = month.getDisplayName(
+        TextStyle.FULL,
+        Locale.forLanguageTag("pt")
+    ).uppercase()
+
+    return "$dayOfMonth $month, $year"
 }
 
 @Preview(showBackground = true)
