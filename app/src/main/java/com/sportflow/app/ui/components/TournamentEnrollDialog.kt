@@ -226,6 +226,7 @@ private fun EnrollDetailRow(icon: androidx.compose.ui.graphics.vector.ImageVecto
 fun TournamentEnrollDialogPreview() {
     TournamentEnrollDialog(
         tournament = TournamentEvent(
+            id = 1,
             category = "BASQUETEBOL • LIGA PRO",
             title = "Master Cup Lisboa 2024",
             date = "15 MAIO, 2024",

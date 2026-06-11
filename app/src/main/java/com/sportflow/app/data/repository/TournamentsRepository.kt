@@ -15,12 +15,12 @@ class TournamentsRepository {
             .from("torneios")
             .select()
             .decodeList<TournamentDto>()
-            .map { it.toDomain() }
+            .map { dto -> dto.toTournament() }
     }
 
     suspend fun getCurrentOrganizerTournaments(): List<Tournament> {
         val currentUserId = SupabaseProvider.client.auth.currentUserOrNull()?.id
-            ?: error("Utilizador não autenticado.")
+            ?: error("Utilizador não autenticado. Inicia sessão novamente.")
 
         return SupabaseProvider.client
             .from("torneios")
@@ -30,7 +30,7 @@ class TournamentsRepository {
                 }
             }
             .decodeList<TournamentDto>()
-            .map { it.toDomain() }
+            .map { dto -> dto.toTournament() }
     }
 
     suspend fun createTournament(request: CreateTournamentRequest) {
@@ -54,7 +54,7 @@ class TournamentsRepository {
             .insert(dto)
     }
 
-    private fun TournamentDto.toDomain(): Tournament {
+    private fun TournamentDto.toTournament(): Tournament {
         return Tournament(
             id = id,
             name = nome,

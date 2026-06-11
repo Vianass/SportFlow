@@ -78,6 +78,32 @@ fun UserHomeScreen(
 
     val uiState by viewModel.uiState.collectAsState()
 
+    if (uiState.enrollmentSuccessMessage != null) {
+        AlertDialog(
+            onDismissRequest = viewModel::clearEnrollmentFeedback,
+            confirmButton = {
+                TextButton(onClick = viewModel::clearEnrollmentFeedback) {
+                    Text("OK")
+                }
+            },
+            title = { Text("Inscrição criada") },
+            text = { Text(uiState.enrollmentSuccessMessage ?: "") }
+        )
+    }
+
+    if (uiState.enrollmentErrorMessage != null) {
+        AlertDialog(
+            onDismissRequest = viewModel::clearEnrollmentFeedback,
+            confirmButton = {
+                TextButton(onClick = viewModel::clearEnrollmentFeedback) {
+                    Text("OK")
+                }
+            },
+            title = { Text("Erro na inscrição") },
+            text = { Text(uiState.enrollmentErrorMessage ?: "") }
+        )
+    }
+
     if (showFilterDialog) {
         com.sportflow.app.ui.components.EventsFilterDialog(
             initialSportFilter = selectedSportFilter,
@@ -112,7 +138,12 @@ fun UserHomeScreen(
     if (selectedUpcomingEvent != null) {
         com.sportflow.app.ui.components.TournamentEnrollDialog(
             tournament = selectedUpcomingEvent!!,
-            onEnroll = { selectedUpcomingEvent = null },
+            onEnroll = {
+                selectedUpcomingEvent?.let { tournament ->
+                    viewModel.enrollInTournament(tournament.id)
+                }
+                selectedUpcomingEvent = null
+            },
             onDismiss = { selectedUpcomingEvent = null }
         )
     }
