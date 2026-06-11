@@ -22,6 +22,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
 import com.sportflow.app.ui.components.SportFlowLoadingOverlay
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
@@ -41,6 +42,7 @@ private val sportOptions = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateEventScreen(
+    onEventCreated: () -> Unit = {},
     viewModel: CreateEventViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -57,6 +59,24 @@ fun CreateEventScreen(
 
     var modalidadeExpanded by remember { mutableStateOf(false) }
     var nivelExpanded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(uiState.successMessage) {
+        if (uiState.successMessage != null) {
+            eventName = ""
+            regulation = ""
+            selectedSport = sportOptions.first()
+            selectedNivel = "Amador"
+            selectedFormato = "Eliminatórias"
+            eventDate = ""
+            location = ""
+            capacity = ""
+            price = ""
+
+            delay(1200)
+            viewModel.clearMessages()
+            onEventCreated()
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(

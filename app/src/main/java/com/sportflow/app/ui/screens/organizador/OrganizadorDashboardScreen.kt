@@ -45,7 +45,7 @@ fun OrganizadorDashboardScreen(onLogout: () -> Unit = {}) {
                 .padding(paddingValues)
         ) {
             when (selectedTab) {
-                0 -> CreateEventScreen()
+                0 -> CreateEventScreen(onEventCreated = { selectedTab = 1 })
                 1 -> OrganizadorEventsScreen()
                 2 -> OrganizadorProfileScreen(onLogout = onLogout)
             }
