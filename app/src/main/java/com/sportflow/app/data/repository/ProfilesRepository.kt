@@ -1,5 +1,6 @@
 package com.sportflow.app.data.repository
 
+import android.util.Log
 import com.sportflow.app.data.remote.SupabaseProvider
 import com.sportflow.app.data.remote.dto.ProfileDto
 import io.github.jan.supabase.postgrest.from
@@ -40,14 +41,26 @@ class ProfilesRepository {
     }
 
     suspend fun updateProfileStatus(id: String, status: String) {
-        SupabaseProvider.client
-            .from("perfis")
-            .update(
-                buildJsonObject {
-                    put("estado", status)
-                }
-            ) {
-                filter { eq("id", id) }
+        try {
+            Log.d("ProfilesRepository", "Tentando atualizar perfil: $id para $status")
+            
+            // Usando buildJsonObject para garantir compatibilidade máxima
+            val updateData = buildJsonObject {
+                put("estado", status)
             }
+
+            SupabaseProvider.client
+                .from("perfis")
+                .update(updateData) {
+                    filter {
+                        eq("id", id)
+                    }
+                }
+            
+            Log.d("ProfilesRepository", "Pedido de atualização enviado.")
+        } catch (e: Exception) {
+            Log.e("ProfilesRepository", "Erro na comunicação com Supabase", e)
+            throw e
+        }
     }
 }

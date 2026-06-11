@@ -1,5 +1,6 @@
 package com.sportflow.app.data.remote
 
+import android.util.Log
 import com.sportflow.app.BuildConfig
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
@@ -12,12 +13,8 @@ object SupabaseProvider {
         val supabaseUrl = BuildConfig.SUPABASE_URL
         val supabaseKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
 
-        require(supabaseUrl.isNotBlank()) {
-            "SUPABASE_URL is missing. Add it to local.properties."
-        }
-
-        require(supabaseKey.isNotBlank()) {
-            "SUPABASE_PUBLISHABLE_KEY is missing. Add it to local.properties."
+        if (supabaseUrl.isBlank() || supabaseKey.isBlank()) {
+            Log.e("SupabaseProvider", "SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY is missing!")
         }
 
         createSupabaseClient(
