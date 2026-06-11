@@ -72,7 +72,7 @@ fun TournamentEnrollDialog(
                     fontWeight = FontWeight.Black,
                     color = SportFlowDarkBlue
                 )
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
@@ -109,9 +109,9 @@ fun TournamentEnrollDialog(
                         value = formatEnrollmentPrice(tournament.price)
                     )
                 }
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

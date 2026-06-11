@@ -31,10 +31,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
 import com.sportflow.app.ui.theme.SportFlowTextGray
+import androidx.lifecycle.viewmodel.compose.viewModel
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
@@ -49,6 +49,17 @@ data class LiveEvent(
     val icon: ImageVector,
     val isDarkTheme: Boolean = false,
     val type: String = "MATCH"
+)
+
+// Data model for Upcoming Events
+data class UpcomingEvent(
+    val day: String,
+    val month: String,
+    val title: String,
+    val location: String,
+    val time: String,
+    val categoryBadge: String,
+    val localDate: LocalDate
 )
 
 @Composable
@@ -148,7 +159,7 @@ fun UserHomeScreen(
             .take(5)
     }
 
-    val filteredUpcomingEvents = remember(selectedSportFilter, selectedAvailabilityFilter, selectedDateFilter, upcomingEvents) {
+    val filteredUpcomingEvents = remember(selectedSportFilter, selectedDateFilter, upcomingEvents) {
         upcomingEvents.filter { event ->
             val matchesSport = if (selectedSportFilter == "Todas") true else {
                 when (selectedSportFilter) {
@@ -156,17 +167,11 @@ fun UserHomeScreen(
                     "Padel" -> event.sportType == "PADEL"
                     "Futebol" -> event.sportType == "SOCCER"
                     "Ténis" -> event.sportType == "TENNIS"
-                    else -> event.sportType.contains(selectedSportFilter, ignoreCase = true) ||
-                            event.category.contains(selectedSportFilter, ignoreCase = true)
+                    else -> event.sportType.contains(selectedSportFilter, ignoreCase = true)
                 }
             }
-            val matchesAvailability = if (selectedAvailabilityFilter == "Todas") true else {
-                if (selectedAvailabilityFilter == "Apenas com vagas") !event.isSoldOut else true
-            }
-            val matchesDate = if (selectedDateFilter == null) true else {
-                event.localDate == selectedDateFilter
-            }
-            matchesSport && matchesAvailability && matchesDate
+            val matchesDate = selectedDateFilter == null || event.localDate == selectedDateFilter
+            matchesSport && matchesDate
         }
     }
 
@@ -237,121 +242,57 @@ fun UserHomeScreen(
             }
         }
 
-        when {
-            uiState.isLoading -> {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        contentAlignment = Alignment.Center
+        if (filteredUpcomingEvents.isEmpty()) {
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = Color(0xFF94A3B8),
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Nenhum evento encontrado",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SportFlowDarkBlue
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Tente alterar os filtros selecionados ou limpe os filtros ativos.",
+                        fontSize = 12.sp,
+                        color = Color(0xFF64748B),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = {
+                            selectedSportFilter = "Todas"
+                            selectedDateFilter = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEFF6FF)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.height(36.dp)
                     ) {
-                        CircularProgressIndicator(color = SportFlowGreen)
-                    }
-                }
-            }
-
-            uiState.errorMessage != null -> {
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ErrorOutline,
-                            contentDescription = null,
-                            tint = Color(0xFFDC2626),
-                            modifier = Modifier.size(40.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "Erro ao carregar torneios",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = SportFlowDarkBlue
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = uiState.errorMessage ?: "Erro desconhecido.",
+                            text = "Limpar Filtros",
+                            color = Color(0xFF2563EB),
                             fontSize = 12.sp,
-                            color = Color(0xFF64748B),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            fontWeight = FontWeight.Bold
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(
-                            onClick = viewModel::loadTournaments,
-                            colors = ButtonDefaults.buttonColors(containerColor = SportFlowGreen),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.height(36.dp)
-                        ) {
-                            Text(
-                                text = "Tentar novamente",
-                                color = SportFlowDarkBlue,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
                     }
                 }
             }
-
-            filteredUpcomingEvents.isEmpty() -> {
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = null,
-                            tint = Color(0xFF94A3B8),
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Nenhum torneio encontrado",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = SportFlowDarkBlue
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Tente alterar os filtros selecionados ou limpe os filtros ativos.",
-                            fontSize = 12.sp,
-                            color = Color(0xFF64748B),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(
-                            onClick = {
-                                selectedSportFilter = "Todas"
-                                selectedDateFilter = null
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEFF6FF)),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.height(36.dp)
-                        ) {
-                            Text(
-                                text = "Limpar Filtros",
-                                color = Color(0xFF2563EB),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-
-            else -> {
-                items(filteredUpcomingEvents) { event ->
-                    UpcomingEventCard(event = event, onEnrollClick = { selectedUpcomingEvent = event })
-                }
+        } else {
+            items(filteredUpcomingEvents) { event ->
+                UpcomingEventCard(event = event, onEnrollClick = { selectedUpcomingEvent = event })
             }
         }
     }
@@ -756,7 +697,7 @@ fun UpcomingEventCard(event: TournamentEvent, onEnrollClick: () -> Unit = {}) {
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = event.category,
+                            text = event.sportType,
                             fontSize = 8.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color.White

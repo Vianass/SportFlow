@@ -1,16 +1,13 @@
 package com.sportflow.app.ui.screens.organizador
 
-import com.sportflow.app.ui.components.SportFlowLoadingOverlay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -19,30 +16,67 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
+import com.sportflow.app.ui.components.SportFlowLoadingOverlay
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
-import com.sportflow.app.ui.theme.SportFlowTextGray
+
+private data class SportOption(
+    val label: String,
+    val value: String
+)
+
+private val sportOptions = listOf(
+    SportOption(label = "Futebol", value = "SOCCER"),
+    SportOption(label = "Padel", value = "PADEL"),
+    SportOption(label = "Basquetebol", value = "BASKETBALL"),
+    SportOption(label = "Ténis", value = "TENNIS")
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateEventScreen() {
+fun CreateEventScreen(
+    onEventCreated: () -> Unit = {},
+    viewModel: CreateEventViewModel = viewModel()
+) {
+    val uiState by viewModel.uiState.collectAsState()
+
     var eventName by remember { mutableStateOf("") }
     var regulation by remember { mutableStateOf("") }
-    var selectedModalidade by remember { mutableStateOf("Padel") }
+    var selectedSport by remember { mutableStateOf(sportOptions.first()) }
     var selectedNivel by remember { mutableStateOf("Amador") }
-    var selectedFormato by remember { mutableStateOf("Eliminatórias") } // "Eliminatórias", "Grupos", "Liga"
-    
+    var selectedFormato by remember { mutableStateOf("Eliminatórias") }
+    var eventDate by remember { mutableStateOf("") }
+    var location by remember { mutableStateOf("") }
+    var capacity by remember { mutableStateOf("") }
+    var price by remember { mutableStateOf("") }
+
     var modalidadeExpanded by remember { mutableStateOf(false) }
     var nivelExpanded by remember { mutableStateOf(false) }
-    
-    var isLoading by remember { mutableStateOf(false) }
-    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(uiState.successMessage) {
+        if (uiState.successMessage != null) {
+            eventName = ""
+            regulation = ""
+            selectedSport = sportOptions.first()
+            selectedNivel = "Amador"
+            selectedFormato = "Eliminatórias"
+            eventDate = ""
+            location = ""
+            capacity = ""
+            price = ""
+
+            delay(1200)
+            viewModel.clearMessages()
+            onEventCreated()
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -50,240 +84,218 @@ fun CreateEventScreen() {
             contentPadding = PaddingValues(top = 20.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-        // 1. Screen Title
-        item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-            ) {
-                Text(
-                    text = "Criar Novo Evento",
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Black,
-                    color = SportFlowDarkBlue
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                // Clean green subline matching figma
-                Box(
-                    modifier = Modifier
-                        .width(76.dp)
-                        .height(4.dp)
-                        .background(Color(0xFF16A34A)) // Green underline
-                )
-            }
-        }
-
-        // 2. Detalhes do Torneio Card
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(0.5.dp, Color(0xFFE2E8F0))
-            ) {
+            item {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                        .padding(horizontal = 24.dp)
                 ) {
                     Text(
-                        text = "Detalhes do Torneio",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
+                        text = "Criar Novo Evento",
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Black,
                         color = SportFlowDarkBlue
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(76.dp)
+                            .height(4.dp)
+                            .background(Color(0xFF16A34A))
+                    )
+                }
+            }
 
-                    // Event Name Field
-                    Column(modifier = Modifier.fillMaxWidth()) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(0.5.dp, Color(0xFFE2E8F0))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
                         Text(
-                            text = "NOME DO EVENTO",
-                            fontSize = 10.sp,
+                            text = "Detalhes do Torneio",
+                            fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF64748B),
-                            letterSpacing = 0.5.sp
+                            color = SportFlowDarkBlue
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        OutlinedTextField(
+
+                        LabeledTextField(
+                            label = "NOME DO EVENTO",
                             value = eventName,
-                            onValueChange = { eventName = it },
-                            placeholder = { Text("Ex: Torneio ESTG 2026", color = Color(0xFF94A3B8)) },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = SportFlowDarkBlue,
-                                unfocusedTextColor = SportFlowDarkBlue,
-                                focusedBorderColor = Color(0xFF16A34A),
-                                unfocusedBorderColor = Color(0xFFE2E8F0),
-                                focusedContainerColor = Color(0xFFEFF6FF).copy(alpha = 0.4f),
-                                unfocusedContainerColor = Color(0xFFEFF6FF).copy(alpha = 0.4f)
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
+                            onValueChange = {
+                                eventName = it
+                                viewModel.clearMessages()
+                            },
+                            placeholder = "Ex: Torneio ESTG 2026"
                         )
-                    }
 
-                    // Modalidade Dropdown Field
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = "MODALIDADE",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF64748B),
-                            letterSpacing = 0.5.sp
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        
-                        ExposedDropdownMenuBox(
-                            expanded = modalidadeExpanded,
-                            onExpandedChange = { modalidadeExpanded = !modalidadeExpanded }
-                        ) {
-                            OutlinedTextField(
-                                value = selectedModalidade,
-                                onValueChange = {},
-                                readOnly = true,
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modalidadeExpanded) },
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = SportFlowDarkBlue,
-                                    unfocusedTextColor = SportFlowDarkBlue,
-                                    focusedBorderColor = Color(0xFF16A34A),
-                                    unfocusedBorderColor = Color(0xFFE2E8F0),
-                                    focusedContainerColor = Color(0xFFEFF6FF).copy(alpha = 0.4f),
-                                    unfocusedContainerColor = Color(0xFFEFF6FF).copy(alpha = 0.4f)
-                                ),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .menuAnchor()
-                            )
-                            
-                            ExposedDropdownMenu(
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            FieldLabel("MODALIDADE")
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            ExposedDropdownMenuBox(
                                 expanded = modalidadeExpanded,
-                                onDismissRequest = { modalidadeExpanded = false }
+                                onExpandedChange = { modalidadeExpanded = !modalidadeExpanded }
                             ) {
-                                listOf("Padel", "Futebol", "Basquetebol", "Ténis").forEach { item ->
-                                    DropdownMenuItem(
-                                        text = { Text(item) },
-                                        onClick = {
-                                            selectedModalidade = item
-                                            modalidadeExpanded = false
-                                        }
-                                    )
+                                OutlinedTextField(
+                                    value = selectedSport.label,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modalidadeExpanded) },
+                                    colors = sportFlowTextFieldColors(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .menuAnchor()
+                                )
+
+                                ExposedDropdownMenu(
+                                    expanded = modalidadeExpanded,
+                                    onDismissRequest = { modalidadeExpanded = false }
+                                ) {
+                                    sportOptions.forEach { item ->
+                                        DropdownMenuItem(
+                                            text = { Text(item.label) },
+                                            onClick = {
+                                                selectedSport = item
+                                                modalidadeExpanded = false
+                                                viewModel.clearMessages()
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    // Nivel Dropdown Field
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = "NÍVEL DE COMPETIÇÃO",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF64748B),
-                            letterSpacing = 0.5.sp
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            FieldLabel("NÍVEL / CATEGORIA")
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            ExposedDropdownMenuBox(
+                                expanded = nivelExpanded,
+                                onExpandedChange = { nivelExpanded = !nivelExpanded }
+                            ) {
+                                OutlinedTextField(
+                                    value = selectedNivel,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = nivelExpanded) },
+                                    colors = sportFlowTextFieldColors(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .menuAnchor()
+                                )
+
+                                ExposedDropdownMenu(
+                                    expanded = nivelExpanded,
+                                    onDismissRequest = { nivelExpanded = false }
+                                ) {
+                                    listOf("Amador", "Semi-Profissional", "Profissional").forEach { item ->
+                                        DropdownMenuItem(
+                                            text = { Text(item) },
+                                            onClick = {
+                                                selectedNivel = item
+                                                nivelExpanded = false
+                                                viewModel.clearMessages()
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        LabeledTextField(
+                            label = "LOCALIZAÇÃO",
+                            value = location,
+                            onValueChange = {
+                                location = it
+                                viewModel.clearMessages()
+                            },
+                            placeholder = "Ex: Pavilhão Desportivo da ESTG"
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
 
-                        ExposedDropdownMenuBox(
-                            expanded = nivelExpanded,
-                            onExpandedChange = { nivelExpanded = !nivelExpanded }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            OutlinedTextField(
-                                value = selectedNivel,
-                                onValueChange = {},
-                                readOnly = true,
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = nivelExpanded) },
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = SportFlowDarkBlue,
-                                    unfocusedTextColor = SportFlowDarkBlue,
-                                    focusedBorderColor = Color(0xFF16A34A),
-                                    unfocusedBorderColor = Color(0xFFE2E8F0),
-                                    focusedContainerColor = Color(0xFFEFF6FF).copy(alpha = 0.4f),
-                                    unfocusedContainerColor = Color(0xFFEFF6FF).copy(alpha = 0.4f)
-                                ),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .menuAnchor()
+                            LabeledTextField(
+                                label = "CAPACIDADE",
+                                value = capacity,
+                                onValueChange = {
+                                    capacity = it.filter { char -> char.isDigit() }
+                                    viewModel.clearMessages()
+                                },
+                                placeholder = "32",
+                                keyboardType = KeyboardType.Number,
+                                modifier = Modifier.weight(1f)
                             )
 
-                            ExposedDropdownMenu(
-                                expanded = nivelExpanded,
-                                onDismissRequest = { nivelExpanded = false }
-                            ) {
-                                listOf("Amador", "Profissional", "Semi-Profissional").forEach { item ->
-                                    DropdownMenuItem(
-                                        text = { Text(item) },
-                                        onClick = {
-                                            selectedNivel = item
-                                            nivelExpanded = false
-                                        }
-                                    )
-                                }
-                            }
+                            LabeledTextField(
+                                label = "PREÇO",
+                                value = price,
+                                onValueChange = {
+                                    price = it
+                                    viewModel.clearMessages()
+                                },
+                                placeholder = "15.00",
+                                keyboardType = KeyboardType.Decimal,
+                                modifier = Modifier.weight(1f)
+                            )
                         }
-                    }
 
-                    // Regulation Text Area Field
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = "REGULAMENTO E REGRAS",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF64748B),
-                            letterSpacing = 0.5.sp
+                        LabeledTextField(
+                            label = "DATA DO EVENTO",
+                            value = eventDate,
+                            onValueChange = {
+                                eventDate = it
+                                viewModel.clearMessages()
+                            },
+                            placeholder = "AAAA-MM-DD",
+                            keyboardType = KeyboardType.Number
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        OutlinedTextField(
+
+                        LabeledTextField(
+                            label = "REGULAMENTO E REGRAS",
                             value = regulation,
                             onValueChange = { regulation = it },
-                            placeholder = { Text("Descreva as regras específicas, formato de pontuação e conduta...", color = Color(0xFF94A3B8)) },
-                            minLines = 4,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = SportFlowDarkBlue,
-                                unfocusedTextColor = SportFlowDarkBlue,
-                                focusedBorderColor = Color(0xFF16A34A),
-                                unfocusedBorderColor = Color(0xFFE2E8F0),
-                                focusedContainerColor = Color(0xFFEFF6FF).copy(alpha = 0.4f),
-                                unfocusedContainerColor = Color(0xFFEFF6FF).copy(alpha = 0.4f)
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
+                            placeholder = "Descreva as regras específicas, formato de pontuação e conduta...",
+                            minLines = 4
                         )
                     }
                 }
             }
-        }
 
-        // 3. Formato Card (Modo Escuro)
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = SportFlowDarkBlue)
-            ) {
-                Column(
+            item {
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                        .padding(horizontal = 24.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = SportFlowDarkBlue)
                 ) {
-                    Text(
-                        text = "Formato",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-
                     Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
+                        Text(
+                            text = "Formato",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+
                         FormatOptionItem(
                             title = "Eliminatórias",
                             description = "K.O. direto até à final",
@@ -304,191 +316,121 @@ fun CreateEventScreen() {
                             isSelected = selectedFormato == "Liga",
                             onClick = { selectedFormato = "Liga" }
                         )
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF0F5A36).copy(alpha = 0.3f))
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                text = "O formato ainda não é gravado no Supabase porque a tabela torneios não tem coluna formato.",
+                                fontSize = 11.sp,
+                                color = SportFlowGreen,
+                                fontWeight = FontWeight.Medium,
+                                lineHeight = 16.sp
+                            )
+                        }
                     }
+                }
+            }
 
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // Green Tip box
-                    Box(
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(0.5.dp, Color(0xFFE2E8F0))
+                ) {
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFF0F5A36).copy(alpha = 0.3f))
-                            .padding(12.dp)
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = "Dica: O formato de eliminatórias é ideal para torneios rápidos de um fim de semana.",
-                            fontSize = 11.sp,
-                            color = SportFlowGreen,
-                            fontWeight = FontWeight.Medium,
+                            text = "Gestão de Calendário",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SportFlowDarkBlue
+                        )
+                        Text(
+                            text = "Para esta fase vamos gravar apenas a data principal em torneios.data_inicio. Jornadas/fases ficam para quando ligarmos jogos.",
+                            fontSize = 12.sp,
+                            color = Color(0xFF64748B),
                             lineHeight = 16.sp
                         )
                     }
                 }
             }
-        }
 
-        // 4. Gestão de Calendário Card
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(0.5.dp, Color(0xFFE2E8F0))
-            ) {
+            item {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp)
+                        .padding(horizontal = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(
-                        text = "Gestão de Calendário",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SportFlowDarkBlue
-                    )
-
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    Text(
-                        text = "Defina as datas das jornadas e fases finais.",
-                        fontSize = 12.sp,
-                        color = Color(0xFF64748B)
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Adicionar Data button (Pill shaped)
-                    Button(
-                        onClick = { /* Add Date */ },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFEFF6FF),
-                            contentColor = Color(0xFF2563EB)
-                        ),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                        modifier = Modifier.height(34.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Adicionar Data",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                    uiState.errorMessage?.let { message ->
+                        MessageBox(
+                            message = message,
+                            backgroundColor = Color(0xFFFEE2E2),
+                            textColor = Color(0xFFB91C1C),
+                            icon = Icons.Default.ErrorOutline
+                        )
                     }
 
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    // List of Date/Jornadas Cards
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        CalendarDateItem(
-                            jornada = "JORNADA 1",
-                            date = "12 Mai, 2026",
-                            time = "09:00 - 18:00",
-                            badgeText = "FECHADO",
-                            badgeColor = Color(0xFFEF4444), // red badge
-                            borderColor = Color(0xFFEF4444)
+                    uiState.successMessage?.let { message ->
+                        MessageBox(
+                            message = message,
+                            backgroundColor = Color(0xFFDCFCE7),
+                            textColor = Color(0xFF166534),
+                            icon = Icons.Default.CheckCircle
                         )
-
-                        CalendarDateItem(
-                            jornada = "JORNADA 2",
-                            date = "19 Mai, 2026",
-                            time = "09:00 - 18:00",
-                            badgeText = "FECHADO",
-                            badgeColor = Color(0xFFEF4444), // red badge
-                            borderColor = Color(0xFFEF4444)
-                        )
-
-                        CalendarDateItem(
-                            jornada = "JORNADA 3",
-                            date = "Definir Data",
-                            time = "--:--",
-                            badgeText = "DISPONÍVEL",
-                            badgeColor = Color(0xFF16A34A), // green badge
-                            borderColor = Color(0xFF94A3B8)
-                        )
-
-                        // Dashed visual Card box at the bottom
-                        DashedAddBox()
                     }
-                }
-            }
-        }
 
-        // 5. Footer shield alert & Actions
-        item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Info text with green shield icon
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Security,
-                        contentDescription = null,
-                        tint = Color(0xFF16A34A),
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Ao publicar, o evento fica visível para inscrições no ecossistema Elite Arena.",
-                        fontSize = 11.sp,
-                        color = Color(0xFF64748B),
-                        lineHeight = 16.sp
-                    )
-                }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = null,
+                            tint = Color(0xFF16A34A),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Ao publicar, o evento fica visível para inscrições.",
+                            fontSize = 11.sp,
+                            color = Color(0xFF64748B),
+                            lineHeight = 16.sp
+                        )
+                    }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Actions buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Guardar Rascunho button
-                    Text(
-                        text = "Guardar Rascunho",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SportFlowDarkBlue,
-                        modifier = Modifier
-                            .clickable { /* Save draft */ }
-                            .padding(vertical = 8.dp)
-                    )
-
-                    // Publicar Evento button
                     Button(
                         onClick = {
-                            coroutineScope.launch {
-                                isLoading = true
-                                delay(1500)
-                                isLoading = false
-                            }
+                            viewModel.createTournament(
+                                name = eventName,
+                                sport = selectedSport.value,
+                                category = selectedNivel,
+                                date = eventDate,
+                                location = location,
+                                capacity = capacity,
+                                price = price
+                            )
                         },
+                        enabled = !uiState.isSubmitting,
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)), // Green publish button
-                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = "Publicar Evento",
+                            text = if (uiState.isSubmitting) "A PUBLICAR..." else "PUBLICAR EVENTO",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Black,
                             color = Color.White
@@ -497,11 +439,90 @@ fun CreateEventScreen() {
                 }
             }
         }
-    } // end LazyColumn
-    if (isLoading) {
-        SportFlowLoadingOverlay()
+
+        if (uiState.isSubmitting) {
+            SportFlowLoadingOverlay()
+        }
     }
-    } // end Box
+}
+
+@Composable
+private fun FieldLabel(text: String) {
+    Text(
+        text = text,
+        fontSize = 10.sp,
+        fontWeight = FontWeight.Bold,
+        color = Color(0xFF64748B),
+        letterSpacing = 0.5.sp
+    )
+}
+
+@Composable
+private fun LabeledTextField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    minLines: Int = 1
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        FieldLabel(label)
+        Spacer(modifier = Modifier.height(6.dp))
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = { Text(placeholder, color = Color(0xFF94A3B8)) },
+            singleLine = minLines == 1,
+            minLines = minLines,
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+            colors = sportFlowTextFieldColors(),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun sportFlowTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = SportFlowDarkBlue,
+    unfocusedTextColor = SportFlowDarkBlue,
+    focusedBorderColor = Color(0xFF16A34A),
+    unfocusedBorderColor = Color(0xFFE2E8F0),
+    focusedContainerColor = Color(0xFFEFF6FF).copy(alpha = 0.4f),
+    unfocusedContainerColor = Color(0xFFEFF6FF).copy(alpha = 0.4f)
+)
+
+@Composable
+private fun MessageBox(
+    message: String,
+    backgroundColor: Color,
+    textColor: Color,
+    icon: androidx.compose.ui.graphics.vector.ImageVector
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(backgroundColor)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = textColor,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = message,
+            fontSize = 12.sp,
+            color = textColor,
+            fontWeight = FontWeight.Bold
+        )
+    }
 }
 
 @Composable
@@ -544,7 +565,6 @@ fun FormatOptionItem(
                 )
             }
 
-            // Green check icon on active
             if (isSelected) {
                 Box(
                     modifier = Modifier
@@ -562,105 +582,6 @@ fun FormatOptionItem(
                 }
             }
         }
-    }
-}
-
-@Composable
-fun CalendarDateItem(
-    jornada: String,
-    date: String,
-    time: String,
-    badgeText: String,
-    badgeColor: Color,
-    borderColor: Color
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF).copy(alpha = 0.4f)),
-        border = BorderStroke(0.5.dp, Color(0xFFE2E8F0))
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min)
-        ) {
-            // Left color stripe edge
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .fillMaxHeight()
-                    .background(borderColor)
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text(
-                        text = jornada,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (jornada.contains("3")) Color(0xFF94A3B8) else Color(0xFF16A34A),
-                        letterSpacing = 0.5.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = date,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Black,
-                        color = SportFlowDarkBlue
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = time,
-                        fontSize = 11.sp,
-                        color = Color(0xFF64748B)
-                    )
-                }
-
-                // Status badge
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(badgeColor.copy(alpha = 0.15f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = badgeText,
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = badgeColor,
-                        letterSpacing = 0.5.sp
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun DashedAddBox() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(54.dp)
-            .border(
-                border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
-                shape = RoundedCornerShape(12.dp)
-            ), // In production we can use a custom dashed draw modifier, this represents a clean rounded outline placeholder
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = Icons.Default.Add,
-            contentDescription = null,
-            tint = Color(0xFF94A3B8),
-            modifier = Modifier.size(20.dp)
-        )
     }
 }
 
