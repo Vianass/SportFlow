@@ -8,6 +8,5 @@ data class CreateTournamentRequest(
     val category: String,
     val location: String,
     val maxCapacity: Int,
-    val price: Double,
-    val organizerId: String? = null
+    val price: Double
 )

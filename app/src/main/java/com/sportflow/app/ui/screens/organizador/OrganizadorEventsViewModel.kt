@@ -37,7 +37,7 @@ class OrganizadorEventsViewModel(
             }
 
             runCatching {
-                tournamentsRepository.getTournaments()
+                tournamentsRepository.getCurrentOrganizerTournaments()
             }.onSuccess { tournaments ->
                 _uiState.update {
                     it.copy(

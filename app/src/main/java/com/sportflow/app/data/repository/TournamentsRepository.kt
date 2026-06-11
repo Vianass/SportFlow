@@ -5,6 +5,7 @@ import com.sportflow.app.data.remote.dto.TournamentDto
 import com.sportflow.app.data.remote.dto.TournamentInsertDto
 import com.sportflow.app.model.CreateTournamentRequest
 import com.sportflow.app.model.Tournament
+import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
 
 class TournamentsRepository {
@@ -14,29 +15,33 @@ class TournamentsRepository {
             .from("torneios")
             .select()
             .decodeList<TournamentDto>()
-            .map { dto ->
-                Tournament(
-                    id = dto.id,
-                    name = dto.nome,
-                    startDate = dto.dataInicio,
-                    status = dto.estado,
-                    organizerId = dto.organizadorId,
-                    createdAt = dto.criadoEm,
-                    sport = dto.modalidade,
-                    category = dto.categoria,
-                    location = dto.localizacao,
-                    maxCapacity = dto.capacidadeMaxima,
-                    price = dto.preco
-                )
+            .map { it.toDomain() }
+    }
+
+    suspend fun getCurrentOrganizerTournaments(): List<Tournament> {
+        val currentUserId = SupabaseProvider.client.auth.currentUserOrNull()?.id
+            ?: error("Utilizador não autenticado.")
+
+        return SupabaseProvider.client
+            .from("torneios")
+            .select {
+                filter {
+                    eq("organizador_id", currentUserId)
+                }
             }
+            .decodeList<TournamentDto>()
+            .map { it.toDomain() }
     }
 
     suspend fun createTournament(request: CreateTournamentRequest) {
+        val currentUserId = SupabaseProvider.client.auth.currentUserOrNull()?.id
+            ?: error("Utilizador não autenticado. Inicia sessão novamente.")
+
         val dto = TournamentInsertDto(
             nome = request.name,
             dataInicio = request.startDate,
             estado = request.status,
-            organizadorId = request.organizerId,
+            organizadorId = currentUserId,
             modalidade = request.sport,
             categoria = request.category,
             localizacao = request.location,
@@ -47,5 +52,21 @@ class TournamentsRepository {
         SupabaseProvider.client
             .from("torneios")
             .insert(dto)
+    }
+
+    private fun TournamentDto.toDomain(): Tournament {
+        return Tournament(
+            id = id,
+            name = nome,
+            startDate = dataInicio,
+            status = estado,
+            organizerId = organizadorId,
+            createdAt = criadoEm,
+            sport = modalidade,
+            category = categoria,
+            location = localizacao,
+            maxCapacity = capacidadeMaxima,
+            price = preco
+        )
     }
 }
