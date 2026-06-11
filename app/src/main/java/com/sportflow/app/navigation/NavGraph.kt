@@ -1,11 +1,15 @@
 package com.sportflow.app.navigation
 
-import HomeScreen
 import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.sportflow.app.ui.screens.*
+import com.sportflow.app.ui.screens.user.UserDashboardScreen
+import com.sportflow.app.ui.screens.admin.AdminDashboardScreen
+
+
+
 
 @Composable
 fun NavGraph() {
@@ -17,6 +21,13 @@ fun NavGraph() {
     ) {
         composable(NavRoutes.INTRO) {
             IntroScreen(onNavigateToLogin = {
+                navController.navigate(NavRoutes.LANDING) {
+                    popUpTo(NavRoutes.INTRO) { inclusive = true }
+                }
+            })
+        }
+        composable(NavRoutes.LANDING) {
+            LandingScreen(onNavigateToLogin = {
                 navController.navigate(NavRoutes.LOGIN)
             })
         }
@@ -45,7 +56,7 @@ fun NavGraph() {
             )
         }
         composable(NavRoutes.HOME) {
-            HomeScreen()
+            AdminDashboardScreen()
         }
     }
 }
