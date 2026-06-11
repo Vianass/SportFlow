@@ -68,7 +68,7 @@ fun SubscriptionDetailsDialog(
                     fontWeight = FontWeight.Black,
                     color = SportFlowDarkBlue
                 )
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
@@ -92,13 +92,13 @@ fun SubscriptionDetailsDialog(
                 ) {
                     DetailRow(icon = Icons.Default.EmojiEvents, label = "Torneio", value = subscription.title)
                     Spacer(modifier = Modifier.height(12.dp))
-                    DetailRow(icon = Icons.Default.Category, label = "Categoria", value = "Open Masculino (Nível 3)")
+                    DetailRow(icon = Icons.Default.Category, label = "Categoria", value = subscription.category)
                     Spacer(modifier = Modifier.height(12.dp))
                     DetailRow(icon = Icons.Default.Event, label = "Data", value = subscription.date)
                     Spacer(modifier = Modifier.height(12.dp))
                     DetailRow(icon = Icons.Default.Place, label = "Local", value = subscription.location)
                     Spacer(modifier = Modifier.height(12.dp))
-                    DetailRow(icon = Icons.Default.Payment, label = "Pagamento", value = "25,00€ (MB Way)")
+                    DetailRow(icon = Icons.Default.Payment, label = "Pagamento", value = "${subscription.priceLabel} • ${subscription.paymentStatus}")
                 }
 
                 Spacer(modifier = Modifier.height(28.dp))
@@ -182,7 +182,10 @@ fun SubscriptionDetailsDialogPreview() {
             subtitle = "Torneio Open de Lisboa",
             date = "15 Out 2024",
             location = "Lisbon Racket Centre",
-            status = SubscriptionStatus.CONFIRMED
+            status = SubscriptionStatus.CONFIRMED,
+            paymentStatus = "PAGO",
+            category = "Open Masculino",
+            priceLabel = "25,00€"
         ),
         onDismiss = {}
     )

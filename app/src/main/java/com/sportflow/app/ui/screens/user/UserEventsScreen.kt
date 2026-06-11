@@ -34,6 +34,7 @@ import java.time.OffsetDateTime
 
 // Data model for Tournament Events
 data class TournamentEvent(
+    val id: Long,
     val category: String,
     val title: String,
     val date: String,
@@ -84,29 +85,45 @@ fun UserEventsScreen(
         )
     }
     var selectedTournament by remember { mutableStateOf<TournamentEvent?>(null) }
-    var showPaymentDialogFor by remember { mutableStateOf<TournamentEvent?>(null) }
+    if (uiState.enrollmentSuccessMessage != null) {
+        AlertDialog(
+            onDismissRequest = viewModel::clearEnrollmentFeedback,
+            confirmButton = {
+                TextButton(onClick = viewModel::clearEnrollmentFeedback) {
+                    Text("OK")
+                }
+            },
+            title = { Text("Inscrição criada") },
+            text = { Text(uiState.enrollmentSuccessMessage ?: "") }
+        )
+    }
+
+    if (uiState.enrollmentErrorMessage != null) {
+        AlertDialog(
+            onDismissRequest = viewModel::clearEnrollmentFeedback,
+            confirmButton = {
+                TextButton(onClick = viewModel::clearEnrollmentFeedback) {
+                    Text("OK")
+                }
+            },
+            title = { Text("Erro na inscrição") },
+            text = { Text(uiState.enrollmentErrorMessage ?: "") }
+        )
+    }
 
     if (selectedTournament != null) {
         com.sportflow.app.ui.components.TournamentEnrollDialog(
             tournament = selectedTournament!!,
             onEnroll = {
-                showPaymentDialogFor = selectedTournament
+                selectedTournament?.let { tournament ->
+                    viewModel.enrollInTournament(tournament.id)
+                }
                 selectedTournament = null
             },
             onDismiss = { selectedTournament = null }
         )
     }
 
-    if (showPaymentDialogFor != null) {
-        com.sportflow.app.ui.components.PaymentDialog(
-            currentLanguage = com.sportflow.app.model.AppLanguage.PT,
-            isCheckout = true,
-            onPaymentSuccess = {
-                // Here we would typically add it to the user's subscriptions
-            },
-            onDismiss = { showPaymentDialogFor = null }
-        )
-    }
 
     val tournaments = remember(uiState.tournaments) {
         uiState.tournaments.map { it.toTournamentEvent() }
@@ -653,6 +670,7 @@ internal fun Tournament.toTournamentEvent(): TournamentEvent {
     val localDate = parseTournamentDate(startDate)
 
     return TournamentEvent(
+        id = id,
         category = category ?: status.uppercase(),
         title = name,
         date = localDate?.formatTournamentDate() ?: startDate,
