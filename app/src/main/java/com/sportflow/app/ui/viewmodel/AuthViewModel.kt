@@ -16,7 +16,10 @@ import kotlinx.serialization.json.put
 sealed class AuthState {
     object Idle : AuthState()
     object Loading : AuthState()
-    data class Success(val role: String) : AuthState()
+    data class Success(
+        val role: String,
+        val isPending: Boolean = false
+    ) : AuthState()
     data class Error(val message: String) : AuthState()
 }
 
@@ -81,8 +84,11 @@ class AuthViewModel(
                         put("papel", dbRole)
                     }
                 }
-                
-                _authState.value = AuthState.Success(role)
+
+                _authState.value = AuthState.Success(
+                    role = role,
+                    isPending = true
+                )
             } catch (e: Exception) {
                 e.printStackTrace()
                 _authState.value = AuthState.Error(e.message ?: "Erro ao criar conta")
