@@ -13,5 +13,11 @@ data class TournamentDto(
     @SerialName("organizador_id")
     val organizadorId: String? = null,
     @SerialName("criado_em")
-    val criadoEm: String? = null
+    val criadoEm: String? = null,
+    val modalidade: String? = null,
+    val categoria: String? = null,
+    val localizacao: String? = null,
+    @SerialName("capacidade_maxima")
+    val capacidadeMaxima: Int? = null,
+    val preco: Double? = null
 )

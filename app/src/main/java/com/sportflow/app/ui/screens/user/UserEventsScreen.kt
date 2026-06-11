@@ -40,9 +40,10 @@ data class TournamentEvent(
     val location: String,
     val vacanciesLeft: Int?,
     val isSoldOut: Boolean,
-    val sportType: String, // BASKETBALL, PADEL, SOCCER, TENNIS
+    val sportType: String,
     val icon: ImageVector,
-    val localDate: LocalDate
+    val localDate: LocalDate,
+    val price: Double?
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -115,8 +116,8 @@ fun UserEventsScreen(
         tournaments.filter { tournament ->
             val matchesSearch = if (searchQuery.isBlank()) true else {
                 tournament.title.contains(searchQuery, ignoreCase = true) ||
-                tournament.category.contains(searchQuery, ignoreCase = true) ||
-                tournament.location.contains(searchQuery, ignoreCase = true)
+                        tournament.category.contains(searchQuery, ignoreCase = true) ||
+                        tournament.location.contains(searchQuery, ignoreCase = true)
             }
             val matchesSport = if (selectedSportFilter == "Todas") true else {
                 when (selectedSportFilter) {
@@ -648,22 +649,23 @@ fun TournamentEventCard(
     }
 }
 
-private fun Tournament.toTournamentEvent(): TournamentEvent {
+internal fun Tournament.toTournamentEvent(): TournamentEvent {
     val localDate = parseTournamentDate(startDate)
 
     return TournamentEvent(
-        category = status.uppercase(),
+        category = category ?: status.uppercase(),
         title = name,
         date = localDate?.formatTournamentDate() ?: startDate,
-        location = "Local a definir",
-        vacanciesLeft = null,
+        location = location ?: "Local a definir",
+        vacanciesLeft = maxCapacity,
         isSoldOut = status.equals("esgotado", ignoreCase = true) ||
                 status.equals("fechado", ignoreCase = true) ||
                 status.equals("terminado", ignoreCase = true) ||
                 status.equals("cancelado", ignoreCase = true),
-        sportType = "GENERIC",
+        sportType = sport ?: "GENERIC",
         icon = Icons.Default.EmojiEvents,
-        localDate = localDate ?: LocalDate.now()
+        localDate = localDate ?: LocalDate.now(),
+        price = price
     )
 }
 

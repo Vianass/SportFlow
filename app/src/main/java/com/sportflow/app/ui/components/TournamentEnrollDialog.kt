@@ -22,6 +22,7 @@ import com.sportflow.app.ui.screens.user.TournamentEvent
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
 import java.time.LocalDate
+import java.util.Locale
 
 
 @Composable
@@ -101,10 +102,12 @@ fun TournamentEnrollDialog(
                     Spacer(modifier = Modifier.height(12.dp))
                     EnrollDetailRow(icon = Icons.Default.Place, label = "Local", value = tournament.location)
                     Spacer(modifier = Modifier.height(12.dp))
-                    
-                    // Extra details specific for enrollment
-                    val price = if (tournament.sportType == "BASKETBALL") "45,00€ / equipa" else "25,00€ / equipa"
-                    EnrollDetailRow(icon = Icons.Default.Payments, label = "Valor da Inscrição", value = price)
+
+                    EnrollDetailRow(
+                        icon = Icons.Default.Payments,
+                        label = "Valor da Inscrição",
+                        value = formatEnrollmentPrice(tournament.price)
+                    )
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -171,6 +174,14 @@ fun TournamentEnrollDialog(
     }
 }
 
+private fun formatEnrollmentPrice(price: Double?): String {
+    return when {
+        price == null -> "Valor a definir"
+        price <= 0.0 -> "Gratuito"
+        else -> "%.2f€ / equipa".format(Locale.forLanguageTag("pt-PT"), price)
+    }
+}
+
 @Composable
 private fun EnrollDetailRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
     Row(
@@ -223,7 +234,8 @@ fun TournamentEnrollDialogPreview() {
             isSoldOut = false,
             sportType = "BASKETBALL",
             icon = Icons.Default.SportsBasketball,
-            localDate = LocalDate.of(2024, 5, 15)
+            localDate = LocalDate.of(2024, 5, 15),
+            price = null
         ),
         onEnroll = {},
         onDismiss = {}

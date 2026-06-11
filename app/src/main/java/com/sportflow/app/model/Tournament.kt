@@ -6,5 +6,10 @@ data class Tournament(
     val startDate: String,
     val status: String,
     val organizerId: String?,
-    val createdAt: String?
+    val createdAt: String?,
+    val sport: String?,
+    val category: String?,
+    val location: String?,
+    val maxCapacity: Int?,
+    val price: Double?
 )

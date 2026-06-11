@@ -19,7 +19,12 @@ class TournamentsRepository {
                     startDate = dto.dataInicio,
                     status = dto.estado,
                     organizerId = dto.organizadorId,
-                    createdAt = dto.criadoEm
+                    createdAt = dto.criadoEm,
+                    sport = dto.modalidade,
+                    category = dto.categoria,
+                    location = dto.localizacao,
+                    maxCapacity = dto.capacidadeMaxima,
+                    price = dto.preco
                 )
             }
     }
