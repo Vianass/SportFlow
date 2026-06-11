@@ -10,7 +10,7 @@ data class TournamentInsertDto(
     val dataInicio: String,
     val estado: String,
     @SerialName("organizador_id")
-    val organizadorId: String? = null,
+    val organizadorId: String,
     val modalidade: String,
     val categoria: String,
     val localizacao: String,

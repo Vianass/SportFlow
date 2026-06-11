@@ -79,7 +79,6 @@ class CreateEventViewModel(
                         location = trimmedLocation,
                         maxCapacity = parsedCapacity!!,
                         price = parsedPrice!!,
-                        organizerId = null
                     )
                 )
             }.onSuccess {

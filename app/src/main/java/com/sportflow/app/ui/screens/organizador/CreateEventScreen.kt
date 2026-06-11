@@ -263,14 +263,6 @@ fun CreateEventScreen(
                             placeholder = "AAAA-MM-DD",
                             keyboardType = KeyboardType.Number
                         )
-
-                        LabeledTextField(
-                            label = "REGULAMENTO E REGRAS",
-                            value = regulation,
-                            onValueChange = { regulation = it },
-                            placeholder = "Descreva as regras específicas, formato de pontuação e conduta...",
-                            minLines = 4
-                        )
                     }
                 }
             }
