@@ -38,20 +38,39 @@ import com.sportflow.app.R
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
 
+import com.sportflow.app.ui.viewmodel.AuthViewModel
+import com.sportflow.app.ui.viewmodel.AuthState
+import androidx.lifecycle.viewmodel.compose.viewModel
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit) {
+fun LoginScreen(
+    onLoginSuccess: () -> Unit,
+    onNavigateToRegister: () -> Unit,
+    viewModel: AuthViewModel = viewModel()
+) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var error by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
     var selectedUserType by remember { mutableStateOf("ATLETA") } // "ATLETA", "ORGANIZADOR", "ADMIN"
-    var isLoading by remember { mutableStateOf(false) }
+    
+    val authState by viewModel.authState.collectAsState()
     
     val scrollState = rememberScrollState()
-    val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     val sharedPrefs = remember { context.getSharedPreferences("sportflow_prefs", android.content.Context.MODE_PRIVATE) }
+
+    LaunchedEffect(authState) {
+        if (authState is AuthState.Success) {
+            val role = (authState as AuthState.Success).role
+            sharedPrefs.edit()
+                .putBoolean("is_logged_in", true)
+                .putString("user_type", role)
+                .apply()
+            onLoginSuccess()
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -298,9 +317,9 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit) {
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    if (error) {
+                    if (error || authState is AuthState.Error) {
                         Text(
-                            text = "Por favor, preencha todos os campos",
+                            text = if (error) "Por favor, preencha todos os campos" else (authState as AuthState.Error).message,
                             color = Color.Red,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
@@ -313,16 +332,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit) {
                     Button(
                         onClick = {
                             if (email.isNotBlank() && password.isNotBlank()) {
-                                coroutineScope.launch {
-                                    isLoading = true
-                                    sharedPrefs.edit()
-                                        .putBoolean("is_logged_in", true)
-                                        .putString("user_type", selectedUserType)
-                                        .apply()
-                                    delay(1500)
-                                    isLoading = false
-                                    onLoginSuccess()
-                                }
+                                viewModel.login(email, password)
                             } else {
                                 error = true
                             }
@@ -416,7 +426,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit) {
                 }
             }
         }
-        if (isLoading) {
+        if (authState is AuthState.Loading) {
             SportFlowLoadingOverlay()
         }
     }

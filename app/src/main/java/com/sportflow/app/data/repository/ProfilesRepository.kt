@@ -12,4 +12,20 @@ class ProfilesRepository {
             .select()
             .decodeList<ProfileDto>()
     }
+
+    suspend fun createProfile(profile: ProfileDto) {
+        SupabaseProvider.client
+            .from("perfis")
+            .insert(profile)
+    }
+
+    suspend fun getProfile(id: String): ProfileDto? {
+        return SupabaseProvider.client
+            .from("perfis")
+            .select {
+                filter {
+                    eq("id", id)
+                }
+            }.decodeSingleOrNull<ProfileDto>()
+    }
 }

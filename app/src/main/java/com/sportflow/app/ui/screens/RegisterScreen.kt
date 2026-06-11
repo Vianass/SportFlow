@@ -37,9 +37,17 @@ import com.sportflow.app.R
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
 
+import com.sportflow.app.ui.viewmodel.AuthViewModel
+import com.sportflow.app.ui.viewmodel.AuthState
+import androidx.lifecycle.viewmodel.compose.viewModel
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RegisterScreen(onRegisterSuccess: () -> Unit, onNavigateToLogin: () -> Unit) {
+fun RegisterScreen(
+    onRegisterSuccess: () -> Unit,
+    onNavigateToLogin: () -> Unit,
+    viewModel: AuthViewModel = viewModel()
+) {
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -48,12 +56,23 @@ fun RegisterScreen(onRegisterSuccess: () -> Unit, onNavigateToLogin: () -> Unit)
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
     var selectedUserType by remember { mutableStateOf("ATLETA") } // "ATLETA", "ORGANIZADOR", "ADMIN"
-    var isLoading by remember { mutableStateOf(false) }
+    
+    val authState by viewModel.authState.collectAsState()
 
     val scrollState = rememberScrollState()
-    val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     val sharedPrefs = remember { context.getSharedPreferences("sportflow_prefs", android.content.Context.MODE_PRIVATE) }
+
+    LaunchedEffect(authState) {
+        if (authState is AuthState.Success) {
+            val role = (authState as AuthState.Success).role
+            sharedPrefs.edit()
+                .putBoolean("is_logged_in", true)
+                .putString("user_type", role)
+                .apply()
+            onRegisterSuccess()
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -371,9 +390,11 @@ fun RegisterScreen(onRegisterSuccess: () -> Unit, onNavigateToLogin: () -> Unit)
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    if (errorMessage.isNotEmpty()) {
+                    val displayError = if (errorMessage.isNotEmpty()) errorMessage else (authState as? AuthState.Error)?.message
+
+                    if (displayError != null) {
                         Text(
-                            text = errorMessage,
+                            text = displayError,
                             color = Color.Red,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
@@ -390,16 +411,7 @@ fun RegisterScreen(onRegisterSuccess: () -> Unit, onNavigateToLogin: () -> Unit)
                                 password != confirmPassword -> errorMessage = "As palavra-passes não coincidem"
                                 password.length < 6 -> errorMessage = "Mínimo 6 caracteres"
                                 else -> {
-                                    coroutineScope.launch {
-                                        isLoading = true
-                                        sharedPrefs.edit()
-                                            .putBoolean("is_logged_in", true)
-                                            .putString("user_type", selectedUserType)
-                                            .apply()
-                                        delay(1500)
-                                        isLoading = false
-                                        onRegisterSuccess()
-                                    }
+                                    viewModel.signUp(email, password, name, selectedUserType)
                                 }
                             }
                         },
@@ -492,7 +504,7 @@ fun RegisterScreen(onRegisterSuccess: () -> Unit, onNavigateToLogin: () -> Unit)
                 }
             }
         }
-        if (isLoading) {
+        if (authState is AuthState.Loading) {
             SportFlowLoadingOverlay()
         }
     }

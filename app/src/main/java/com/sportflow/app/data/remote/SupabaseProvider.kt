@@ -21,8 +21,8 @@ object SupabaseProvider {
         }
 
         createSupabaseClient(
-            supabaseUrl = supabaseUrl,
-            supabaseKey = supabaseKey
+            supabaseUrl = supabaseUrl.trim().removeSuffix("/"),
+            supabaseKey = supabaseKey.trim()
         ) {
             install(Postgrest)
             install(Auth)
