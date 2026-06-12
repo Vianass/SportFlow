@@ -4,6 +4,7 @@ import android.util.Log
 import com.sportflow.app.data.remote.SupabaseProvider
 import com.sportflow.app.data.remote.dto.ProfileDto
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -42,24 +43,20 @@ class ProfilesRepository {
 
     suspend fun updateProfileStatus(id: String, status: String) {
         try {
-            Log.d("ProfilesRepository", "Tentando atualizar perfil: $id para $status")
+            Log.d("ProfilesRepository", "Chamando RPC para $status: $id")
             
-            // Usando buildJsonObject para garantir compatibilidade máxima
-            val updateData = buildJsonObject {
-                put("estado", status)
-            }
-
-            SupabaseProvider.client
-                .from("perfis")
-                .update(updateData) {
-                    filter {
-                        eq("id", id)
-                    }
+            val functionName = if (status == "ATIVO") "aprovar_utilizador" else "rejeitar_utilizador"
+            
+            SupabaseProvider.client.postgrest.rpc(
+                function = functionName,
+                parameters = buildJsonObject {
+                    put("user_id", id)
                 }
-            
-            Log.d("ProfilesRepository", "Pedido de atualização enviado.")
+            )
+
+            Log.d("ProfilesRepository", "RPC executado com sucesso.")
         } catch (e: Exception) {
-            Log.e("ProfilesRepository", "Erro na comunicação com Supabase", e)
+            Log.e("ProfilesRepository", "Erro ao chamar RPC", e)
             throw e
         }
     }
