@@ -12,6 +12,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import com.sportflow.app.ui.localization.LocalAppLanguage
+import com.sportflow.app.ui.localization.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,6 +48,7 @@ data class UserSubscription(
 
 @Composable
 fun UserSubscriptionsScreen() {
+    val currentLanguage = LocalAppLanguage.current
     // Interactive filter state: 0 = TODAS, 1 = ATIVAS, 2 = CONCLUÍDAS
     var selectedFilter by remember { mutableStateOf(0) }
     var selectedSubscription by remember { mutableStateOf<UserSubscription?>(null) }
@@ -89,7 +92,7 @@ fun UserSubscriptionsScreen() {
 
     if (showPaymentDialogFor != null) {
         com.sportflow.app.ui.components.PaymentDialog(
-            currentLanguage = com.sportflow.app.model.AppLanguage.PT,
+            currentLanguage = currentLanguage,
             isCheckout = true,
             onPaymentSuccess = {
                 val index = subscriptions.indexOf(showPaymentDialogFor)

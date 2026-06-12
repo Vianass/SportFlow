@@ -1,5 +1,7 @@
 package com.sportflow.app.ui.screens.admin
 
+import com.sportflow.app.ui.localization.localizedText
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import com.sportflow.app.ui.localization.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -203,7 +206,7 @@ fun AdminEventsScreen() {
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.Search,
-                            contentDescription = "Pesquisar",
+                            contentDescription = localizedText("Pesquisar"),
                             tint = Color(0xFF94A3B8),
                             modifier = Modifier.size(18.dp)
                         )
@@ -352,7 +355,7 @@ fun AdminTournamentCard(tournament: AdminTournament) {
                     } else {
                         Icon(
                             imageVector = Icons.Default.MoreHoriz,
-                            contentDescription = "Mais opções",
+                            contentDescription = localizedText("Mais opções"),
                             tint = Color(0xFF94A3B8),
                             modifier = Modifier.size(20.dp)
                         )

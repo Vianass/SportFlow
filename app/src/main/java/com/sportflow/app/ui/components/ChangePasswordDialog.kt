@@ -1,5 +1,6 @@
 package com.sportflow.app.ui.components
 
+import com.sportflow.app.ui.localization.localizedText
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -11,6 +12,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
+import com.sportflow.app.ui.localization.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -209,7 +211,7 @@ private fun PasswordTextField(
             val description = if (isVisible) "Hide password" else "Show password"
 
             IconButton(onClick = { onVisibilityChange(!isVisible) }) {
-                Icon(imageVector = image, contentDescription = description, tint = Color(0xFF94A3B8))
+                Icon(imageVector = image, contentDescription = localizedText(description), tint = Color(0xFF94A3B8))
             }
         }
     )

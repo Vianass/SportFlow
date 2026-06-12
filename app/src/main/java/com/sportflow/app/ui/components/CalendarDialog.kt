@@ -1,5 +1,7 @@
 package com.sportflow.app.ui.components
 
+import com.sportflow.app.ui.localization.localizedText
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,6 +13,8 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
+import com.sportflow.app.ui.localization.Text
+import com.sportflow.app.ui.localization.appLocale
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +39,7 @@ fun CalendarDialog(
     onDateSelected: (LocalDate?) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val locale = appLocale()
     // Determine the month to start showing. If there is a selected date, show that month.
     // Otherwise, default to Sept 2024 which has most of our mock events.
     var currentMonth by remember { 
@@ -82,7 +87,7 @@ fun CalendarDialog(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "Fechar",
+                            contentDescription = localizedText("Fechar"),
                             tint = Color(0xFF64748B),
                             modifier = Modifier.size(18.dp)
                         )
@@ -98,16 +103,16 @@ fun CalendarDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = { currentMonth = currentMonth.minusMonths(1) }) {
-                        Icon(Icons.Default.ChevronLeft, contentDescription = "Mês Anterior", tint = SportFlowDarkBlue)
+                        Icon(Icons.Default.ChevronLeft, contentDescription = localizedText("Mês Anterior"), tint = SportFlowDarkBlue)
                     }
                     Text(
-                        text = "${currentMonth.month.getDisplayName(TextStyle.FULL, Locale.forLanguageTag("pt")).replaceFirstChar { it.uppercase() }} ${currentMonth.year}",
+                        text = "${currentMonth.month.getDisplayName(TextStyle.FULL, locale).replaceFirstChar { it.uppercase(locale) }} ${currentMonth.year}",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = SportFlowDarkBlue
                     )
                     IconButton(onClick = { currentMonth = currentMonth.plusMonths(1) }) {
-                        Icon(Icons.Default.ChevronRight, contentDescription = "Próximo Mês", tint = SportFlowDarkBlue)
+                        Icon(Icons.Default.ChevronRight, contentDescription = localizedText("Próximo Mês"), tint = SportFlowDarkBlue)
                     }
                 }
 

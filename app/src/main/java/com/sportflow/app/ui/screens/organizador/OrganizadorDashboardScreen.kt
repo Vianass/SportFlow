@@ -1,5 +1,7 @@
 package com.sportflow.app.ui.screens.organizador
 
+import com.sportflow.app.ui.localization.localizedText
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.sportflow.app.ui.localization.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,7 +72,7 @@ fun SportFlowOrganizadorHeader() {
         ) {
             Image(
                 painter = painterResource(id = R.drawable.sportflow_logo),
-                contentDescription = "SportFlow Logo",
+                contentDescription = localizedText("SportFlow Logo"),
                 modifier = Modifier
                     .size(32.dp)
                     .background(Color.White.copy(alpha = 0.05f), CircleShape)
@@ -99,7 +102,7 @@ fun SportFlowOrganizadorHeader() {
             ) {
                 Icon(
                     imageVector = Icons.Default.Person,
-                    contentDescription = "Perfil",
+                    contentDescription = localizedText("Perfil"),
                     tint = Color.White,
                     modifier = Modifier.size(20.dp)
                 )
@@ -147,7 +150,7 @@ fun OrganizadorBottomNavigationBar(
                 ) {
                     Icon(
                         imageVector = icon,
-                        contentDescription = label,
+                        contentDescription = localizedText(label),
                         tint = itemColor,
                         modifier = Modifier.size(22.dp)
                     )

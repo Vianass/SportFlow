@@ -1,5 +1,7 @@
 package com.sportflow.app.ui.components
 
+import com.sportflow.app.ui.localization.localizedText
+
 import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -16,6 +18,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material3.*
+import com.sportflow.app.ui.localization.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -249,7 +252,7 @@ fun PaymentDialogContent(
                                 ) {
                                     Image(
                                         painter = painterResource(id = R.drawable.apple_pay_logo),
-                                        contentDescription = "Apple Pay",
+                                        contentDescription = localizedText("Apple Pay"),
                                         modifier = Modifier.size(30.dp)
                                     )
                                 }
@@ -387,7 +390,7 @@ fun PaymentDialogContent(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Check,
-                                    contentDescription = "Success",
+                                    contentDescription = localizedText("Success"),
                                     tint = SportFlowGreen,
                                     modifier = Modifier.size(40.dp)
                                 )

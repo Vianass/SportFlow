@@ -1,5 +1,7 @@
 package com.sportflow.app.ui.components
 
+import com.sportflow.app.ui.localization.localizedText
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -8,7 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.sportflow.app.ui.localization.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,7 +51,7 @@ fun SportFlowLoadingOverlay() {
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.sportflow_logo),
-                        contentDescription = "SportFlow Logo",
+                        contentDescription = localizedText("SportFlow Logo"),
                         modifier = Modifier.size(110.dp)
                     )
                 }

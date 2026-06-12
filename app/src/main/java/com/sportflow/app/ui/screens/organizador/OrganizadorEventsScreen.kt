@@ -1,5 +1,7 @@
 package com.sportflow.app.ui.screens.organizador
 
+import com.sportflow.app.ui.localization.localizedText
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -12,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.sportflow.app.ui.localization.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -156,7 +159,7 @@ fun OrganizadorEventDetailScreen(onBack: () -> Unit) {
             ) {
                 Icon(
                     imageVector = Icons.Default.KeyboardArrowLeft,
-                    contentDescription = "Voltar",
+                    contentDescription = localizedText("Voltar"),
                     tint = SportFlowDarkBlue,
                     modifier = Modifier
                         .size(32.dp)
@@ -455,7 +458,7 @@ fun OrganizadorEventDetailScreen(onBack: () -> Unit) {
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Icon(
                                     imageVector = Icons.Default.Delete,
-                                    contentDescription = "Remover",
+                                    contentDescription = localizedText("Remover"),
                                     tint = Color(0xFFCBD5E1),
                                     modifier = Modifier
                                         .size(18.dp)
@@ -810,7 +813,7 @@ fun EventCard(
             ) {
                 Image(
                     painter = painterResource(id = imageRes),
-                    contentDescription = title,
+                    contentDescription = localizedText(title),
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -866,7 +869,7 @@ fun EventCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.DateRange,
-                        contentDescription = "Data",
+                        contentDescription = localizedText("Data"),
                         tint = Color(0xFF047857),
                         modifier = Modifier.size(16.dp)
                     )
@@ -887,7 +890,7 @@ fun EventCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Place,
-                        contentDescription = "Localização",
+                        contentDescription = localizedText("Localização"),
                         tint = Color(0xFF047857),
                         modifier = Modifier.size(16.dp)
                     )

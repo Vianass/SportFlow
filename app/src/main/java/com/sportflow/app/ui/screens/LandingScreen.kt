@@ -1,5 +1,7 @@
 package com.sportflow.app.ui.screens
 
+import com.sportflow.app.ui.localization.localizedText
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -13,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.sportflow.app.ui.localization.Text
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -73,7 +76,7 @@ fun LandingHeader(onNavigateToLogin: () -> Unit) {
         ) {
             Image(
                 painter = painterResource(id = R.drawable.sportflow_logo),
-                contentDescription = "SportFlow Logo",
+                contentDescription = localizedText("SportFlow Logo"),
                 modifier = Modifier
                     .size(28.dp)
                     .background(Color.White.copy(alpha = 0.05f), CircleShape)
@@ -181,7 +184,7 @@ fun HeroSection(onNavigateToLogin: () -> Unit) {
             // Sports Pitch Graphic representation
             Image(
                 painter = painterResource(id = R.drawable.futsal_stadium),
-                contentDescription = "Futsal Stadium",
+                contentDescription = localizedText("Futsal Stadium"),
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -258,7 +261,7 @@ fun FooterSection() {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Image(
                 painter = painterResource(id = R.drawable.sportflow_logo),
-                contentDescription = "SportFlow Logo",
+                contentDescription = localizedText("SportFlow Logo"),
                 modifier = Modifier
                     .size(24.dp)
                     .background(Color.Black.copy(alpha = 0.05f), CircleShape)

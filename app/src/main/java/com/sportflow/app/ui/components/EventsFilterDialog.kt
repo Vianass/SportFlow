@@ -1,5 +1,7 @@
 package com.sportflow.app.ui.components
 
+import com.sportflow.app.ui.localization.localizedText
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.sportflow.app.ui.localization.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,7 +72,7 @@ fun EventsFilterDialog(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "Fechar",
+                            contentDescription = localizedText("Fechar"),
                             tint = Color(0xFF64748B),
                             modifier = Modifier.size(18.dp)
                         )

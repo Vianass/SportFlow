@@ -1,5 +1,7 @@
 package com.sportflow.app.ui.screens
 
+import com.sportflow.app.ui.localization.localizedText
+
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -18,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.sportflow.app.ui.localization.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -99,7 +102,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit) {
                     ) {
                         Image(
                             painter = painterResource(id = R.drawable.sportflow_logo),
-                            contentDescription = "SportFlow Logo",
+                            contentDescription = localizedText("SportFlow Logo"),
                             modifier = Modifier
                                 .size(28.dp)
                                 .background(Color(0xFFEFF6FF), CircleShape)
@@ -276,7 +279,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit) {
                                 IconButton(onClick = { passwordVisible = !passwordVisible }) {
                                     Icon(
                                         imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                        contentDescription = if (passwordVisible) "Ocultar" else "Mostrar",
+                                        contentDescription = localizedText(if (passwordVisible) "Ocultar" else "Mostrar"),
                                         tint = Color(0xFF64748B)
                                     )
                                 }
@@ -445,7 +448,7 @@ fun SocialLoginButton(
         ) {
             Image(
                 painter = painterResource(id = iconRes),
-                contentDescription = label,
+                contentDescription = localizedText(label),
                 modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))

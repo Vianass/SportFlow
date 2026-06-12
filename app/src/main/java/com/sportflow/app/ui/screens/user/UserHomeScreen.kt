@@ -1,5 +1,7 @@
 package com.sportflow.app.ui.screens.user
 
+import com.sportflow.app.ui.localization.localizedText
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -14,6 +16,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.*
+import com.sportflow.app.ui.localization.Text
+import com.sportflow.app.ui.localization.appLocale
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,6 +66,7 @@ data class UpcomingEvent(
 
 @Composable
 fun UserHomeScreen(onNavigateToEvents: () -> Unit = {}) {
+    val locale = appLocale()
     var selectedLiveEvent by remember { mutableStateOf<LiveEvent?>(null) }
     var selectedUpcomingEvent by remember { mutableStateOf<UpcomingEvent?>(null) }
 
@@ -264,7 +269,7 @@ fun UserHomeScreen(onNavigateToEvents: () -> Unit = {}) {
                     }
                     
                     if (selectedDateFilter != null) {
-                        val formattedDate = "${selectedDateFilter!!.dayOfMonth} ${selectedDateFilter!!.month.getDisplayName(TextStyle.SHORT, Locale.forLanguageTag("pt")).uppercase()}"
+                        val formattedDate = "${selectedDateFilter!!.dayOfMonth} ${selectedDateFilter!!.month.getDisplayName(TextStyle.SHORT, locale).uppercase(locale)}"
                         FilterBadge(
                             text = formattedDate,
                             onClear = { selectedDateFilter = null }
@@ -478,7 +483,7 @@ fun SectionHeader(
                 ) {
                     Icon(
                         imageVector = Icons.Default.FilterList,
-                        contentDescription = "Filtrar",
+                        contentDescription = localizedText("Filtrar"),
                         tint = Color(0xFF2563EB),
                         modifier = Modifier.size(16.dp)
                     )
@@ -492,7 +497,7 @@ fun SectionHeader(
                 ) {
                     Icon(
                         imageVector = Icons.Default.DateRange,
-                        contentDescription = "Calendário",
+                        contentDescription = localizedText("Calendário"),
                         tint = Color(0xFF2563EB),
                         modifier = Modifier.size(16.dp)
                     )
@@ -522,7 +527,7 @@ private fun FilterBadge(text: String, onClear: () -> Unit) {
         Spacer(modifier = Modifier.width(4.dp))
         Icon(
             imageVector = Icons.Default.Close,
-            contentDescription = "Limpar",
+            contentDescription = localizedText("Limpar"),
             tint = Color(0xFF2563EB),
             modifier = Modifier.size(12.dp)
         )
@@ -746,7 +751,7 @@ fun UpcomingEventCard(event: UpcomingEvent, onEnrollClick: () -> Unit = {}) {
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.ChevronRight,
-                            contentDescription = "Detalhes",
+                            contentDescription = localizedText("Detalhes"),
                             tint = SportFlowDarkBlue,
                             modifier = Modifier.size(18.dp)
                         )

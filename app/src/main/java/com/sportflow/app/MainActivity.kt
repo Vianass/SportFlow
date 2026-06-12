@@ -1,5 +1,7 @@
 package com.sportflow.app
 
+import com.sportflow.app.ui.localization.localizedText
+
 import com.sportflow.app.navigation.NavGraph
 import com.sportflow.app.model.AppLanguageViewModel
 import com.sportflow.app.model.LocalLanguageViewModel
@@ -13,10 +15,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.sportflow.app.ui.localization.LocalAppLanguage
+import com.sportflow.app.ui.localization.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -68,10 +71,14 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val context = LocalContext.current
-            SideEffect { languageViewModel.loadSavedLanguage(context) }
+            LaunchedEffect(Unit) { languageViewModel.loadSavedLanguage(context) }
             val isReady by viewModel.isReady.collectAsState()
+            val currentLanguage by languageViewModel.language.collectAsState()
 
-            CompositionLocalProvider(LocalLanguageViewModel provides languageViewModel) {
+            CompositionLocalProvider(
+                LocalLanguageViewModel provides languageViewModel,
+                LocalAppLanguage provides currentLanguage,
+            ) {
                 SportFlowTheme {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
@@ -119,7 +126,7 @@ fun MainScreen() {
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.sportflow_logo),
-                        contentDescription = "SportFlow Logo",
+                        contentDescription = localizedText("SportFlow Logo"),
                         modifier = Modifier.size(150.dp)
                     )
                 }

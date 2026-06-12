@@ -1,5 +1,7 @@
 package com.sportflow.app.ui.screens.admin
 
+import com.sportflow.app.ui.localization.localizedText
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.sportflow.app.ui.localization.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -152,7 +155,7 @@ fun AdminProfileScreen(onLogout: () -> Unit = {}) {
                 ) {
                     Icon(
                         imageVector = Icons.Default.Edit,
-                        contentDescription = "Editar Foto",
+                        contentDescription = localizedText("Editar Foto"),
                         tint = Color.White,
                         modifier = Modifier.size(16.dp)
                     )
@@ -265,7 +268,7 @@ fun AdminProfileScreen(onLogout: () -> Unit = {}) {
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                        contentDescription = "Sair",
+                        contentDescription = localizedText("Sair"),
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -414,7 +417,7 @@ fun AdminSettingsItem(
             // Chevron Right arrow icon
             Icon(
                 imageVector = Icons.Default.ChevronRight,
-                contentDescription = "Abrir",
+                contentDescription = localizedText("Abrir"),
                 tint = Color(0xFF94A3B8),
                 modifier = Modifier.size(20.dp)
             )

@@ -1,5 +1,7 @@
 package com.sportflow.app.ui.screens.user
 
+import com.sportflow.app.ui.localization.localizedText
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -10,6 +12,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.*
+import com.sportflow.app.ui.localization.LocalAppLanguage
+import com.sportflow.app.ui.localization.Text
+import com.sportflow.app.ui.localization.appLocale
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,6 +51,8 @@ data class TournamentEvent(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserEventsScreen() {
+    val currentLanguage = LocalAppLanguage.current
+    val locale = appLocale()
     var searchQuery by remember { mutableStateOf("") }
     var selectedSportFilter by remember { mutableStateOf("Todas") }
     var selectedAvailabilityFilter by remember { mutableStateOf("Todas") }
@@ -92,7 +99,7 @@ fun UserEventsScreen() {
 
     if (showPaymentDialogFor != null) {
         com.sportflow.app.ui.components.PaymentDialog(
-            currentLanguage = com.sportflow.app.model.AppLanguage.PT,
+            currentLanguage = currentLanguage,
             isCheckout = true,
             onPaymentSuccess = {
                 // Here we would typically add it to the user's subscriptions
@@ -240,7 +247,7 @@ fun UserEventsScreen() {
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.Search,
-                            contentDescription = "Pesquisar",
+                            contentDescription = localizedText("Pesquisar"),
                             tint = Color(0xFF94A3B8),
                             modifier = Modifier.size(18.dp)
                         )
@@ -361,7 +368,7 @@ fun UserEventsScreen() {
                         }
                         
                         if (selectedDateFilter != null) {
-                            val formattedDate = "${selectedDateFilter!!.dayOfMonth} ${selectedDateFilter!!.month.getDisplayName(TextStyle.SHORT, Locale.forLanguageTag("pt")).uppercase()}"
+                            val formattedDate = "${selectedDateFilter!!.dayOfMonth} ${selectedDateFilter!!.month.getDisplayName(TextStyle.SHORT, locale).uppercase(locale)}"
                             FilterBadge(
                                 text = formattedDate,
                                 onClear = { selectedDateFilter = null }
@@ -661,7 +668,7 @@ private fun FilterBadge(text: String, onClear: () -> Unit) {
         Spacer(modifier = Modifier.width(4.dp))
         Icon(
             imageVector = Icons.Default.Close,
-            contentDescription = "Limpar",
+            contentDescription = localizedText("Limpar"),
             tint = Color(0xFF2563EB),
             modifier = Modifier.size(12.dp)
         )

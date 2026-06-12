@@ -1,5 +1,7 @@
 package com.sportflow.app.ui.screens.organizador
 
+import com.sportflow.app.ui.localization.localizedText
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -12,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.sportflow.app.ui.localization.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -156,7 +159,7 @@ fun OrganizadorProfileScreen(onLogout: () -> Unit = {}) {
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.organizer_profile_pic),
-                        contentDescription = "Foto de Perfil",
+                        contentDescription = localizedText("Foto de Perfil"),
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .fillMaxSize()

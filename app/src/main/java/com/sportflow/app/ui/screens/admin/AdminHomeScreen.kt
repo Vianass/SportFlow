@@ -1,5 +1,7 @@
 package com.sportflow.app.ui.screens.admin
 
+import com.sportflow.app.ui.localization.localizedText
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import com.sportflow.app.ui.localization.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -398,7 +401,7 @@ fun AdminHomeScreen() {
                 IconButton(onClick = { /* Filter */ }, modifier = Modifier.size(24.dp)) {
                     Icon(
                         imageVector = Icons.Default.Tune,
-                        contentDescription = "Filtrar",
+                        contentDescription = localizedText("Filtrar"),
                         tint = SportFlowDarkBlue,
                         modifier = Modifier.size(18.dp)
                     )
@@ -615,7 +618,7 @@ fun AdminMatchCard(match: UpcomingMatch) {
             IconButton(onClick = { /* Edit match */ }, modifier = Modifier.size(28.dp)) {
                 Icon(
                     imageVector = Icons.Default.Edit,
-                    contentDescription = "Editar",
+                    contentDescription = localizedText("Editar"),
                     tint = Color(0xFF94A3B8),
                     modifier = Modifier.size(16.dp)
                 )
@@ -623,7 +626,7 @@ fun AdminMatchCard(match: UpcomingMatch) {
             IconButton(onClick = { /* Menu */ }, modifier = Modifier.size(28.dp)) {
                 Icon(
                     imageVector = Icons.Default.MoreVert,
-                    contentDescription = "Opções",
+                    contentDescription = localizedText("Opções"),
                     tint = Color(0xFF94A3B8),
                     modifier = Modifier.size(16.dp)
                 )

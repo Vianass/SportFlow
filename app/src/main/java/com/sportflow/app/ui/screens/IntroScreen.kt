@@ -1,5 +1,7 @@
 package com.sportflow.app.ui.screens
 
+import com.sportflow.app.ui.localization.localizedText
+
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -7,7 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.sportflow.app.ui.localization.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -104,7 +106,7 @@ fun IntroScreen(onNavigate: (String) -> Unit) {
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.sportflow_logo),
-                        contentDescription = "SportFlow Logo",
+                        contentDescription = localizedText("SportFlow Logo"),
                         modifier = Modifier.size(75.dp)
                     )
                 }
@@ -241,7 +243,7 @@ fun IntroScreenPreview() {
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.sportflow_logo),
-                        contentDescription = "SportFlow Logo",
+                        contentDescription = localizedText("SportFlow Logo"),
                         modifier = Modifier.size(75.dp)
                     )
                 }
