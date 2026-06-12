@@ -3,8 +3,10 @@ package com.sportflow.app.ui.screens.organizador
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sportflow.app.data.repository.EnrollmentsRepository
+import com.sportflow.app.data.repository.TeamsRepository
 import com.sportflow.app.data.repository.TournamentsRepository
 import com.sportflow.app.model.Enrollment
+import com.sportflow.app.model.Team
 import com.sportflow.app.model.Tournament
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,12 +22,17 @@ data class OrganizadorEventsUiState(
     val selectedTournamentEnrollments: List<Enrollment> = emptyList(),
     val enrollmentsErrorMessage: String? = null,
     val updatingEnrollmentId: Long? = null,
+    val isLoadingTeams: Boolean = false,
+    val selectedTournamentTeams: List<Team> = emptyList(),
+    val teamsErrorMessage: String? = null,
+    val isCreatingTeam: Boolean = false,
     val actionMessage: String? = null
 )
 
 class OrganizadorEventsViewModel(
     private val tournamentsRepository: TournamentsRepository = TournamentsRepository(),
-    private val enrollmentsRepository: EnrollmentsRepository = EnrollmentsRepository()
+    private val enrollmentsRepository: EnrollmentsRepository = EnrollmentsRepository(),
+    private val teamsRepository: TeamsRepository = TeamsRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OrganizadorEventsUiState(isLoading = true))
@@ -65,6 +72,11 @@ class OrganizadorEventsViewModel(
         }
     }
 
+    fun loadManagementDataForTournament(tournamentId: Long) {
+        loadEnrollmentsForTournament(tournamentId)
+        loadTeamsForTournament(tournamentId)
+    }
+
     fun loadEnrollmentsForTournament(tournamentId: Long) {
         viewModelScope.launch {
             _uiState.update {
@@ -96,6 +108,71 @@ class OrganizadorEventsViewModel(
         }
     }
 
+    fun loadTeamsForTournament(tournamentId: Long) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isLoadingTeams = true,
+                    selectedTournamentTeams = emptyList(),
+                    teamsErrorMessage = null
+                )
+            }
+
+            runCatching {
+                teamsRepository.getTeamsForTournament(tournamentId)
+            }.onSuccess { teams ->
+                _uiState.update {
+                    it.copy(
+                        isLoadingTeams = false,
+                        selectedTournamentTeams = teams.sortedBy { team -> team.name.lowercase() },
+                        teamsErrorMessage = null
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isLoadingTeams = false,
+                        teamsErrorMessage = throwable.message ?: "Erro ao carregar equipas."
+                    )
+                }
+            }
+        }
+    }
+
+    fun createTeam(tournamentId: Long, name: String) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isCreatingTeam = true,
+                    teamsErrorMessage = null,
+                    actionMessage = null
+                )
+            }
+
+            runCatching {
+                teamsRepository.createTeam(
+                    tournamentId = tournamentId,
+                    name = name
+                )
+            }.onSuccess {
+                _uiState.update {
+                    it.copy(
+                        isCreatingTeam = false,
+                        actionMessage = "Equipa criada com sucesso."
+                    )
+                }
+                loadTeamsForTournament(tournamentId)
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isCreatingTeam = false,
+                        teamsErrorMessage = throwable.message ?: "Erro ao criar equipa."
+                    )
+                }
+            }
+        }
+    }
+
     fun approveEnrollment(enrollmentId: Long, tournamentId: Long) {
         updateEnrollmentStatus(
             enrollmentId = enrollmentId,
@@ -116,6 +193,18 @@ class OrganizadorEventsViewModel(
 
     fun clearActionMessage() {
         _uiState.update { it.copy(actionMessage = null) }
+    }
+
+    fun clearSelectionData() {
+        _uiState.update {
+            it.copy(
+                selectedTournamentEnrollments = emptyList(),
+                selectedTournamentTeams = emptyList(),
+                enrollmentsErrorMessage = null,
+                teamsErrorMessage = null,
+                actionMessage = null
+            )
+        }
     }
 
     private fun updateEnrollmentStatus(
