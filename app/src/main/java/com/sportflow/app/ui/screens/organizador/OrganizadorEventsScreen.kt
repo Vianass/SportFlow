@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sportflow.app.R
+import com.sportflow.app.model.EligiblePlayer
 import com.sportflow.app.model.Enrollment
 import com.sportflow.app.model.Team
 import com.sportflow.app.model.Tournament
@@ -64,6 +65,15 @@ fun OrganizadorEventsScreen(
             onRetryEnrollments = { viewModel.loadEnrollmentsForTournament(tournament.id) },
             onRetryTeams = { viewModel.loadTeamsForTournament(tournament.id) },
             onCreateTeam = { teamName -> viewModel.createTeam(tournament.id, teamName) },
+            onLoadEligiblePlayers = { viewModel.loadEligiblePlayersForTournament(tournament.id) },
+            onAssociatePlayer = { teamId, playerId, shirtNumber ->
+                viewModel.associatePlayerToTeam(
+                    tournamentId = tournament.id,
+                    teamId = teamId,
+                    playerId = playerId,
+                    shirtNumber = shirtNumber
+                )
+            },
             onApproveEnrollment = { enrollmentId ->
                 viewModel.approveEnrollment(enrollmentId, tournament.id)
             },
@@ -188,10 +198,13 @@ fun OrganizadorEventDetailScreen(
     onRetryEnrollments: () -> Unit,
     onRetryTeams: () -> Unit,
     onCreateTeam: (String) -> Unit,
+    onLoadEligiblePlayers: () -> Unit,
+    onAssociatePlayer: (Long, String, Int?) -> Unit,
     onApproveEnrollment: (Long) -> Unit,
     onRejectEnrollment: (Long) -> Unit
 ) {
     var showCreateTeamDialog by remember { mutableStateOf(false) }
+    var teamForPlayerAssociation by remember { mutableStateOf<Team?>(null) }
     val confirmedPlayers = uiState.selectedTournamentEnrollments.count { enrollment ->
         enrollment.status.equals("APROVADA", ignoreCase = true) &&
                 enrollment.paymentStatus.equals("PAGO", ignoreCase = true)
@@ -204,6 +217,26 @@ fun OrganizadorEventDetailScreen(
             onConfirm = { teamName ->
                 onCreateTeam(teamName)
                 showCreateTeamDialog = false
+            }
+        )
+    }
+
+    teamForPlayerAssociation?.let { team ->
+        LaunchedEffect(team.id) {
+            onLoadEligiblePlayers()
+        }
+
+        AssociatePlayerDialog(
+            team = team,
+            eligiblePlayers = uiState.eligiblePlayers,
+            isLoading = uiState.isLoadingEligiblePlayers,
+            isAssociating = uiState.associatingTeamId == team.id,
+            errorMessage = uiState.eligiblePlayersErrorMessage,
+            onRetry = onLoadEligiblePlayers,
+            onDismiss = { teamForPlayerAssociation = null },
+            onConfirm = { playerId, shirtNumber ->
+                onAssociatePlayer(team.id, playerId, shirtNumber)
+                teamForPlayerAssociation = null
             }
         )
     }
@@ -268,7 +301,8 @@ fun OrganizadorEventDetailScreen(
             TeamsSection(
                 uiState = uiState,
                 onRetry = onRetryTeams,
-                onCreateTeamClick = { showCreateTeamDialog = true }
+                onCreateTeamClick = { showCreateTeamDialog = true },
+                onAssociatePlayerClick = { team -> teamForPlayerAssociation = team }
             )
         }
 
@@ -461,7 +495,8 @@ private fun LocationAndNewTeamCard(
 private fun TeamsSection(
     uiState: OrganizadorEventsUiState,
     onRetry: () -> Unit,
-    onCreateTeamClick: () -> Unit
+    onCreateTeamClick: () -> Unit,
+    onAssociatePlayerClick: (Team) -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -513,7 +548,10 @@ private fun TeamsSection(
         }
 
         uiState.selectedTournamentTeams.forEach { team ->
-            TeamRosterCard(team = team)
+            TeamRosterCard(
+                team = team,
+                onAssociatePlayerClick = { onAssociatePlayerClick(team) }
+            )
         }
 
         DashedAddTeamBox(onClick = onCreateTeamClick)
@@ -566,7 +604,10 @@ private fun EmptyTeamsCard(onCreateTeamClick: () -> Unit) {
 }
 
 @Composable
-private fun TeamRosterCard(team: Team) {
+private fun TeamRosterCard(
+    team: Team,
+    onAssociatePlayerClick: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -607,23 +648,24 @@ private fun TeamRosterCard(team: Team) {
                         color = SportFlowDarkBlue
                     )
                     Text(
-                        text = "Jogadores ainda não associados",
+                        text = if (team.players.isEmpty()) "Jogadores ainda não associados" else "${team.players.size} jogador(es) associado(s)",
                         fontSize = 10.sp,
                         color = Color(0xFF64748B)
                     )
                 }
 
+                val isComplete = team.players.isNotEmpty()
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xFFFFF7ED))
+                        .background(if (isComplete) Color(0xFFD1FAE5) else Color(0xFFFFF7ED))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = "INCOMPLETO",
+                        text = if (isComplete) "VALIDADO" else "INCOMPLETO",
                         fontSize = 8.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFEA580C)
+                        color = if (isComplete) Color(0xFF047857) else Color(0xFFEA580C)
                     )
                 }
             }
@@ -632,6 +674,24 @@ private fun TeamRosterCard(team: Team) {
             HorizontalDivider(color = Color(0xFFF1F5F9))
             Spacer(modifier = Modifier.height(12.dp))
 
+            if (team.players.isEmpty()) {
+                Text(
+                    text = "Nenhum jogador associado a esta equipa.",
+                    fontSize = 12.sp,
+                    color = Color(0xFF64748B)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            } else {
+                team.players.forEach { player ->
+                    TeamPlayerRow(
+                        name = player.name,
+                        email = player.email,
+                        shirtNumber = player.shirtNumber
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -639,7 +699,8 @@ private fun TeamRosterCard(team: Team) {
                     .border(
                         border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
                         shape = RoundedCornerShape(8.dp)
-                    ),
+                    )
+                    .clickable { onAssociatePlayerClick() },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -651,6 +712,234 @@ private fun TeamRosterCard(team: Team) {
             }
         }
     }
+}
+
+
+@Composable
+private fun TeamPlayerRow(
+    name: String,
+    email: String,
+    shirtNumber: Int?
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFFF1F5F9)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = name.initials(),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Black,
+                color = SportFlowDarkBlue
+            )
+        }
+
+        Spacer(modifier = Modifier.width(10.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = name,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = SportFlowDarkBlue
+            )
+            Text(
+                text = email,
+                fontSize = 10.sp,
+                color = Color(0xFF64748B),
+                lineHeight = 13.sp
+            )
+        }
+
+        Text(
+            text = shirtNumber?.let { "#$it" } ?: "S/N",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Black,
+            color = SportFlowGreen
+        )
+    }
+}
+
+@Composable
+private fun AssociatePlayerDialog(
+    team: Team,
+    eligiblePlayers: List<EligiblePlayer>,
+    isLoading: Boolean,
+    isAssociating: Boolean,
+    errorMessage: String?,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: (String, Int?) -> Unit
+) {
+    var selectedPlayerId by remember(team.id, eligiblePlayers) {
+        mutableStateOf(eligiblePlayers.firstOrNull()?.playerId)
+    }
+    var shirtNumberText by remember(team.id) { mutableStateOf("") }
+    val parsedShirtNumber = shirtNumberText.trim().takeIf { it.isNotBlank() }?.toIntOrNull()
+    val isShirtNumberInvalid = shirtNumberText.isNotBlank() && parsedShirtNumber == null
+
+    AlertDialog(
+        onDismissRequest = { if (!isAssociating) onDismiss() },
+        title = {
+            Text(
+                text = "Associar jogador",
+                fontWeight = FontWeight.Bold,
+                color = SportFlowDarkBlue
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Equipa: ${team.name}",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SportFlowDarkBlue
+                )
+
+                when {
+                    isLoading -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 22.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = SportFlowGreen)
+                        }
+                    }
+
+                    errorMessage != null -> {
+                        Text(
+                            text = errorMessage,
+                            fontSize = 12.sp,
+                            color = Color(0xFFDC2626)
+                        )
+                        OutlinedButton(onClick = onRetry) {
+                            Text("Tentar novamente")
+                        }
+                    }
+
+                    eligiblePlayers.isEmpty() -> {
+                        Text(
+                            text = "Não há jogadores aprovados e pagos disponíveis para associar.",
+                            fontSize = 13.sp,
+                            color = Color(0xFF64748B),
+                            lineHeight = 18.sp
+                        )
+                    }
+
+                    else -> {
+                        Text(
+                            text = "Seleciona um atleta aprovado e com pagamento confirmado.",
+                            fontSize = 12.sp,
+                            color = Color(0xFF64748B)
+                        )
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 220.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            eligiblePlayers.forEach { player ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable(enabled = !isAssociating) {
+                                            selectedPlayerId = player.playerId
+                                        }
+                                        .background(
+                                            if (selectedPlayerId == player.playerId) Color(0xFFEFF6FF) else Color(0xFFF8FAFC)
+                                        )
+                                        .border(
+                                            width = 0.5.dp,
+                                            color = if (selectedPlayerId == player.playerId) SportFlowGreen else Color(0xFFE2E8F0),
+                                            shape = RoundedCornerShape(10.dp)
+                                        )
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = selectedPlayerId == player.playerId,
+                                        onClick = { selectedPlayerId = player.playerId },
+                                        enabled = !isAssociating
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = player.name,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = SportFlowDarkBlue
+                                        )
+                                        Text(
+                                            text = player.email,
+                                            fontSize = 10.sp,
+                                            color = Color(0xFF64748B)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = shirtNumberText,
+                            onValueChange = { value ->
+                                shirtNumberText = value.filter { char -> char.isDigit() }.take(3)
+                            },
+                            label = { Text("Número da camisola opcional") },
+                            singleLine = true,
+                            enabled = !isAssociating,
+                            isError = isShirtNumberInvalid,
+                            supportingText = if (isShirtNumberInvalid) {
+                                { Text("Insere um número válido.") }
+                            } else null,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val playerId = selectedPlayerId ?: return@Button
+                    onConfirm(playerId, parsedShirtNumber)
+                },
+                enabled = !isLoading && !isAssociating && selectedPlayerId != null && !isShirtNumberInvalid,
+                colors = ButtonDefaults.buttonColors(containerColor = SportFlowGreen)
+            ) {
+                if (isAssociating) {
+                    CircularProgressIndicator(
+                        color = SportFlowDarkBlue,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(16.dp)
+                    )
+                } else {
+                    Text(
+                        text = "Associar",
+                        color = SportFlowDarkBlue,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isAssociating
+            ) {
+                Text("Cancelar")
+            }
+        }
+    )
 }
 
 @Composable

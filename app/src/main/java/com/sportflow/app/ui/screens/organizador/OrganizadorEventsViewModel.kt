@@ -6,6 +6,7 @@ import com.sportflow.app.data.repository.EnrollmentsRepository
 import com.sportflow.app.data.repository.TeamsRepository
 import com.sportflow.app.data.repository.TournamentsRepository
 import com.sportflow.app.model.Enrollment
+import com.sportflow.app.model.EligiblePlayer
 import com.sportflow.app.model.Team
 import com.sportflow.app.model.Tournament
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +27,10 @@ data class OrganizadorEventsUiState(
     val selectedTournamentTeams: List<Team> = emptyList(),
     val teamsErrorMessage: String? = null,
     val isCreatingTeam: Boolean = false,
+    val isLoadingEligiblePlayers: Boolean = false,
+    val eligiblePlayers: List<EligiblePlayer> = emptyList(),
+    val eligiblePlayersErrorMessage: String? = null,
+    val associatingTeamId: Long? = null,
     val actionMessage: String? = null
 )
 
@@ -75,6 +80,7 @@ class OrganizadorEventsViewModel(
     fun loadManagementDataForTournament(tournamentId: Long) {
         loadEnrollmentsForTournament(tournamentId)
         loadTeamsForTournament(tournamentId)
+        loadEligiblePlayersForTournament(tournamentId)
     }
 
     fun loadEnrollmentsForTournament(tournamentId: Long) {
@@ -162,11 +168,84 @@ class OrganizadorEventsViewModel(
                     )
                 }
                 loadTeamsForTournament(tournamentId)
+                loadEligiblePlayersForTournament(tournamentId)
             }.onFailure { throwable ->
                 _uiState.update {
                     it.copy(
                         isCreatingTeam = false,
                         teamsErrorMessage = throwable.message ?: "Erro ao criar equipa."
+                    )
+                }
+            }
+        }
+    }
+
+    fun loadEligiblePlayersForTournament(tournamentId: Long) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isLoadingEligiblePlayers = true,
+                    eligiblePlayersErrorMessage = null
+                )
+            }
+
+            runCatching {
+                teamsRepository.getEligiblePlayersForTournament(tournamentId)
+            }.onSuccess { players ->
+                _uiState.update {
+                    it.copy(
+                        isLoadingEligiblePlayers = false,
+                        eligiblePlayers = players,
+                        eligiblePlayersErrorMessage = null
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isLoadingEligiblePlayers = false,
+                        eligiblePlayersErrorMessage = throwable.message ?: "Erro ao carregar jogadores disponíveis."
+                    )
+                }
+            }
+        }
+    }
+
+    fun associatePlayerToTeam(
+        tournamentId: Long,
+        teamId: Long,
+        playerId: String,
+        shirtNumber: Int?
+    ) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    associatingTeamId = teamId,
+                    teamsErrorMessage = null,
+                    eligiblePlayersErrorMessage = null,
+                    actionMessage = null
+                )
+            }
+
+            runCatching {
+                teamsRepository.associatePlayerToTeam(
+                    teamId = teamId,
+                    playerId = playerId,
+                    shirtNumber = shirtNumber
+                )
+            }.onSuccess {
+                _uiState.update {
+                    it.copy(
+                        associatingTeamId = null,
+                        actionMessage = "Jogador associado com sucesso."
+                    )
+                }
+                loadTeamsForTournament(tournamentId)
+                loadEligiblePlayersForTournament(tournamentId)
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        associatingTeamId = null,
+                        eligiblePlayersErrorMessage = throwable.message ?: "Erro ao associar jogador."
                     )
                 }
             }
@@ -200,8 +279,10 @@ class OrganizadorEventsViewModel(
             it.copy(
                 selectedTournamentEnrollments = emptyList(),
                 selectedTournamentTeams = emptyList(),
+                eligiblePlayers = emptyList(),
                 enrollmentsErrorMessage = null,
                 teamsErrorMessage = null,
+                eligiblePlayersErrorMessage = null,
                 actionMessage = null
             )
         }
