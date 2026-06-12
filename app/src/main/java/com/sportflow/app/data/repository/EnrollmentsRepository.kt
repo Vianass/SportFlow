@@ -128,6 +128,24 @@ class EnrollmentsRepository(
             }
     }
 
+    suspend fun markEnrollmentAsPaid(enrollmentId: Long) {
+        val currentUserId = currentUserId()
+
+        SupabaseProvider.client
+            .from("inscricoes")
+            .update(
+                buildJsonObject {
+                    put("pagamento", "PAGO")
+                }
+            ) {
+                filter {
+                    eq("id", enrollmentId)
+                    eq("utilizador_id", currentUserId)
+                    eq("estado", "APROVADA")
+                }
+            }
+    }
+
     private fun currentUserId(): String {
         return SupabaseProvider.client.auth.currentUserOrNull()?.id
             ?: error("Utilizador não autenticado. Inicia sessão novamente.")

@@ -5,15 +5,29 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.HourglassTop
+import androidx.compose.material.icons.filled.Payment
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -21,12 +35,17 @@ import androidx.compose.ui.window.DialogProperties
 import com.sportflow.app.ui.screens.user.SubscriptionStatus
 import com.sportflow.app.ui.screens.user.UserSubscription
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
+import com.sportflow.app.ui.theme.SportFlowGreen
 
 @Composable
 fun SubscriptionDetailsDialog(
     subscription: UserSubscription,
+    isProcessingPayment: Boolean = false,
+    onMarkAsPaid: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
+    val header = subscription.toDialogHeader()
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -45,17 +64,16 @@ fun SubscriptionDetailsDialog(
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Header Icon
                 Box(
                     modifier = Modifier
                         .size(48.dp)
-                        .background(Color(0xFFDCFCE7), RoundedCornerShape(12.dp)),
+                        .background(header.iconBackground, RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CheckCircle,
+                        imageVector = header.icon,
                         contentDescription = null,
-                        tint = Color(0xFF16A34A),
+                        tint = header.iconTint,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -63,25 +81,25 @@ fun SubscriptionDetailsDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "Inscrição Confirmada",
+                    text = header.title,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Black,
-                    color = SportFlowDarkBlue
+                    color = SportFlowDarkBlue,
+                    textAlign = TextAlign.Center
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "O teu lugar está garantido neste torneio. Prepara-te para a competição!",
+                    text = header.description,
                     fontSize = 12.sp,
                     color = Color(0xFF64748B),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    textAlign = TextAlign.Center,
                     lineHeight = 16.sp
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Detail Box
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -98,16 +116,46 @@ fun SubscriptionDetailsDialog(
                     Spacer(modifier = Modifier.height(12.dp))
                     DetailRow(icon = Icons.Default.Place, label = "Local", value = subscription.location)
                     Spacer(modifier = Modifier.height(12.dp))
-                    DetailRow(icon = Icons.Default.Payment, label = "Pagamento", value = "${subscription.priceLabel} • ${subscription.paymentStatus}")
+                    DetailRow(
+                        icon = Icons.Default.Payment,
+                        label = "Pagamento",
+                        value = "${subscription.priceLabel} • ${subscription.paymentStatus}"
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(28.dp))
 
-                // Actions
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    if (subscription.canPay) {
+                        Button(
+                            onClick = onMarkAsPaid,
+                            enabled = !isProcessingPayment,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = SportFlowGreen),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            if (isProcessingPayment) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = SportFlowDarkBlue
+                                )
+                            } else {
+                                Text(
+                                    text = "FINALIZAR PAGAMENTO",
+                                    color = SportFlowDarkBlue,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                    }
+
                     Button(
                         onClick = onDismiss,
                         modifier = Modifier
@@ -123,19 +171,22 @@ fun SubscriptionDetailsDialog(
                             fontSize = 13.sp
                         )
                     }
-                    TextButton(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = "DESCARREGAR FATURA",
-                            color = Color(0xFF3B82F6),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
+
+                    if (subscription.paymentStatus == "PAGO") {
+                        TextButton(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(
+                                text = "DESCARREGAR FATURA",
+                                color = Color(0xFF3B82F6),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        }
                     }
                 }
             }
@@ -144,7 +195,7 @@ fun SubscriptionDetailsDialog(
 }
 
 @Composable
-private fun DetailRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
+private fun DetailRow(icon: ImageVector, label: String, value: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -173,20 +224,50 @@ private fun DetailRow(icon: androidx.compose.ui.graphics.vector.ImageVector, lab
     }
 }
 
-@Preview(showBackground = true)
-@Composable
-fun SubscriptionDetailsDialogPreview() {
-    SubscriptionDetailsDialog(
-        subscription = UserSubscription(
-            title = "Padel Master Series",
-            subtitle = "Torneio Open de Lisboa",
-            date = "15 Out 2024",
-            location = "Lisbon Racket Centre",
-            status = SubscriptionStatus.CONFIRMED,
-            paymentStatus = "PAGO",
-            category = "Open Masculino",
-            priceLabel = "25,00€"
-        ),
-        onDismiss = {}
-    )
+private data class SubscriptionDialogHeader(
+    val title: String,
+    val description: String,
+    val icon: ImageVector,
+    val iconBackground: Color,
+    val iconTint: Color
+)
+
+private fun UserSubscription.toDialogHeader(): SubscriptionDialogHeader {
+    return when (status) {
+        SubscriptionStatus.CONFIRMED -> {
+            if (paymentStatus == "PAGO") {
+                SubscriptionDialogHeader(
+                    title = "Inscrição e pagamento confirmados",
+                    description = "O teu lugar está garantido neste torneio. Prepara-te para a competição!",
+                    icon = Icons.Default.CheckCircle,
+                    iconBackground = Color(0xFFDCFCE7),
+                    iconTint = Color(0xFF16A34A)
+                )
+            } else {
+                SubscriptionDialogHeader(
+                    title = "Inscrição aprovada",
+                    description = "A tua inscrição foi aprovada. Finaliza o pagamento para concluir a participação.",
+                    icon = Icons.Default.CheckCircle,
+                    iconBackground = Color(0xFFDCFCE7),
+                    iconTint = Color(0xFF16A34A)
+                )
+            }
+        }
+
+        SubscriptionStatus.PENDING -> SubscriptionDialogHeader(
+            title = "Inscrição pendente",
+            description = "A inscrição está a aguardar aprovação do organizador. O pagamento só deve ser feito depois da aprovação.",
+            icon = Icons.Default.HourglassTop,
+            iconBackground = Color(0xFFEFF6FF),
+            iconTint = Color(0xFF2563EB)
+        )
+
+        SubscriptionStatus.REJECTED -> SubscriptionDialogHeader(
+            title = "Inscrição rejeitada",
+            description = "O organizador rejeitou esta inscrição. Consulta outros torneios disponíveis.",
+            icon = Icons.Default.Cancel,
+            iconBackground = Color(0xFFFEE2E2),
+            iconTint = Color(0xFFDC2626)
+        )
+    }
 }

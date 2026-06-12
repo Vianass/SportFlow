@@ -41,6 +41,7 @@ enum class SubscriptionStatus {
 
 // Data model for User Subscriptions
 data class UserSubscription(
+    val enrollmentId: Long,
     val title: String,
     val subtitle: String,
     val date: String,
@@ -49,6 +50,7 @@ data class UserSubscription(
     val paymentStatus: String,
     val category: String,
     val priceLabel: String,
+    val canPay: Boolean,
     val infoText: String? = null,
     val resultText: String? = null
 )
@@ -62,15 +64,22 @@ fun UserSubscriptionsScreen(
 
     val uiState by viewModel.uiState.collectAsState()
 
+    val subscriptions = remember(uiState.enrollments) {
+        uiState.enrollments.map { it.toUserSubscription() }
+    }
+
+    LaunchedEffect(subscriptions, selectedSubscription?.enrollmentId) {
+        val currentId = selectedSubscription?.enrollmentId ?: return@LaunchedEffect
+        selectedSubscription = subscriptions.firstOrNull { it.enrollmentId == currentId }
+    }
+
     if (selectedSubscription != null) {
         com.sportflow.app.ui.components.SubscriptionDetailsDialog(
             subscription = selectedSubscription!!,
+            isProcessingPayment = uiState.updatingPaymentEnrollmentId == selectedSubscription!!.enrollmentId,
+            onMarkAsPaid = { viewModel.markEnrollmentAsPaid(selectedSubscription!!.enrollmentId) },
             onDismiss = { selectedSubscription = null }
         )
-    }
-
-    val subscriptions = remember(uiState.enrollments) {
-        uiState.enrollments.map { it.toUserSubscription() }
     }
 
     val filteredSubscriptions = remember(selectedFilter, subscriptions) {
@@ -223,7 +232,9 @@ fun UserSubscriptionsScreen(
             items(filteredSubscriptions) { subscription ->
                 SubscriptionCard(
                     subscription = subscription,
-                    onViewDetails = { selectedSubscription = subscription }
+                    isProcessingPayment = uiState.updatingPaymentEnrollmentId == subscription.enrollmentId,
+                    onViewDetails = { selectedSubscription = subscription },
+                    onMarkAsPaid = { viewModel.markEnrollmentAsPaid(subscription.enrollmentId) }
                 )
             }
         }
@@ -233,7 +244,9 @@ fun UserSubscriptionsScreen(
 @Composable
 fun SubscriptionCard(
     subscription: UserSubscription,
-    onViewDetails: () -> Unit = {}
+    isProcessingPayment: Boolean = false,
+    onViewDetails: () -> Unit = {},
+    onMarkAsPaid: () -> Unit = {}
 ) {
     val cardBorderColor = if (subscription.status == SubscriptionStatus.PENDING) {
         BorderStroke(1.dp, Color(0xFF86EFAC))
@@ -353,6 +366,35 @@ fun SubscriptionCard(
 
             when (subscription.status) {
                 SubscriptionStatus.CONFIRMED -> {
+                    if (subscription.canPay) {
+                        Button(
+                            onClick = onMarkAsPaid,
+                            enabled = !isProcessingPayment,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = SportFlowGreen)
+                        ) {
+                            if (isProcessingPayment) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = SportFlowDarkBlue
+                                )
+                            } else {
+                                Text(
+                                    text = "FINALIZAR PAGAMENTO",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = SportFlowDarkBlue
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
                     Button(
                         onClick = onViewDetails,
                         modifier = Modifier
@@ -459,21 +501,30 @@ private fun Enrollment.toUserSubscription(): UserSubscription {
         else -> SubscriptionStatus.PENDING
     }
 
-    val paymentInfo = when (paymentStatus.uppercase(Locale.ROOT)) {
-        "PAGO" -> "Pagamento confirmado."
-        else -> "Pagamento pendente. Finalização de pagamento será ligada numa próxima etapa."
+    val normalizedPaymentStatus = paymentStatus.uppercase(Locale.ROOT)
+    val isPaymentPending = normalizedPaymentStatus == "PENDENTE"
+    val canPay = status == SubscriptionStatus.CONFIRMED && isPaymentPending
+
+    val paymentInfo = when {
+        normalizedPaymentStatus == "PAGO" -> "Pagamento confirmado."
+        status == SubscriptionStatus.PENDING -> "Inscrição pendente. Aguarda aprovação do organizador antes de finalizar o pagamento."
+        canPay -> "Inscrição aprovada. Finaliza o pagamento para garantir a tua participação."
+        status == SubscriptionStatus.REJECTED -> "Inscrição rejeitada pelo organizador."
+        else -> "Pagamento pendente."
     }
 
     return UserSubscription(
+        enrollmentId = id,
         title = tournament?.name ?: "Torneio removido",
         subtitle = tournament?.sport?.toSportLabel() ?: "Torneio",
         date = tournament?.startDate?.formatTournamentDate() ?: registeredAt?.formatTournamentDate() ?: "Data a definir",
         location = tournament?.location ?: "Local a definir",
         status = status,
-        paymentStatus = paymentStatus,
+        paymentStatus = normalizedPaymentStatus,
         category = tournament?.category ?: "Categoria a definir",
         priceLabel = tournament?.price.formatPrice(),
-        infoText = if (status == SubscriptionStatus.PENDING) paymentInfo else null,
+        canPay = canPay,
+        infoText = if (normalizedPaymentStatus == "PAGO") null else paymentInfo,
         resultText = null
     )
 }
