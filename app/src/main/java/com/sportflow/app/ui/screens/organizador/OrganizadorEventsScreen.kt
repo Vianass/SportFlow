@@ -29,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sportflow.app.R
 import com.sportflow.app.model.EligiblePlayer
 import com.sportflow.app.model.Enrollment
+import com.sportflow.app.model.Game
 import com.sportflow.app.model.Team
 import com.sportflow.app.model.Tournament
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
@@ -64,7 +65,16 @@ fun OrganizadorEventsScreen(
             },
             onRetryEnrollments = { viewModel.loadEnrollmentsForTournament(tournament.id) },
             onRetryTeams = { viewModel.loadTeamsForTournament(tournament.id) },
+            onRetryGames = { viewModel.loadGamesForTournament(tournament.id) },
             onCreateTeam = { teamName -> viewModel.createTeam(tournament.id, teamName) },
+            onCreateGame = { homeTeamId, awayTeamId, dateTime ->
+                viewModel.createGame(
+                    tournamentId = tournament.id,
+                    homeTeamId = homeTeamId,
+                    awayTeamId = awayTeamId,
+                    dateTime = dateTime
+                )
+            },
             onLoadEligiblePlayers = { viewModel.loadEligiblePlayersForTournament(tournament.id) },
             onAssociatePlayer = { teamId, playerId, shirtNumber ->
                 viewModel.associatePlayerToTeam(
@@ -197,13 +207,16 @@ fun OrganizadorEventDetailScreen(
     onBack: () -> Unit,
     onRetryEnrollments: () -> Unit,
     onRetryTeams: () -> Unit,
+    onRetryGames: () -> Unit,
     onCreateTeam: (String) -> Unit,
+    onCreateGame: (Long, Long, String) -> Unit,
     onLoadEligiblePlayers: () -> Unit,
     onAssociatePlayer: (Long, String, Int?) -> Unit,
     onApproveEnrollment: (Long) -> Unit,
     onRejectEnrollment: (Long) -> Unit
 ) {
     var showCreateTeamDialog by remember { mutableStateOf(false) }
+    var showCreateGameDialog by remember { mutableStateOf(false) }
     var teamForPlayerAssociation by remember { mutableStateOf<Team?>(null) }
     val confirmedPlayers = uiState.selectedTournamentEnrollments.count { enrollment ->
         enrollment.status.equals("APROVADA", ignoreCase = true) &&
@@ -217,6 +230,18 @@ fun OrganizadorEventDetailScreen(
             onConfirm = { teamName ->
                 onCreateTeam(teamName)
                 showCreateTeamDialog = false
+            }
+        )
+    }
+
+    if (showCreateGameDialog) {
+        CreateGameDialog(
+            teams = uiState.selectedTournamentTeams,
+            isCreating = uiState.isCreatingGame,
+            onDismiss = { showCreateGameDialog = false },
+            onConfirm = { homeTeamId, awayTeamId, dateTime ->
+                onCreateGame(homeTeamId, awayTeamId, dateTime)
+                showCreateGameDialog = false
             }
         )
     }
@@ -303,6 +328,14 @@ fun OrganizadorEventDetailScreen(
                 onRetry = onRetryTeams,
                 onCreateTeamClick = { showCreateTeamDialog = true },
                 onAssociatePlayerClick = { team -> teamForPlayerAssociation = team }
+            )
+        }
+
+        item {
+            CalendarGamesSection(
+                uiState = uiState,
+                onRetry = onRetryGames,
+                onCreateGameClick = { showCreateGameDialog = true }
             )
         }
 
@@ -1030,6 +1063,458 @@ private fun CreateTeamDialog(
             }
         }
     )
+}
+
+@Composable
+private fun CalendarGamesSection(
+    uiState: OrganizadorEventsUiState,
+    onRetry: () -> Unit,
+    onCreateGameClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(0.5.dp, Color(0xFFE2E8F0))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Gestão de Calendário",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SportFlowDarkBlue
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Cria jogos reais entre equipas do torneio.",
+                        fontSize = 12.sp,
+                        color = Color(0xFF64748B)
+                    )
+                }
+
+                IconButton(onClick = onRetry) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Atualizar jogos",
+                        tint = SportFlowGreen
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Button(
+                onClick = onCreateGameClick,
+                enabled = uiState.selectedTournamentTeams.size >= 2 && !uiState.isCreatingGame,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFEFF6FF),
+                    contentColor = Color(0xFF2563EB),
+                    disabledContainerColor = Color(0xFFF1F5F9),
+                    disabledContentColor = Color(0xFF94A3B8)
+                ),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                modifier = Modifier.height(34.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Adicionar Jogo",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            if (uiState.selectedTournamentTeams.size < 2) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Cria pelo menos duas equipas antes de adicionar jogos.",
+                    fontSize = 12.sp,
+                    color = Color(0xFF64748B)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            when {
+                uiState.gamesErrorMessage != null -> {
+                    Text(
+                        text = uiState.gamesErrorMessage,
+                        fontSize = 12.sp,
+                        color = Color(0xFFDC2626),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFFFFF1F2))
+                            .padding(12.dp)
+                    )
+                }
+
+                uiState.isLoadingGames -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 28.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = SportFlowGreen)
+                    }
+                }
+
+                uiState.selectedTournamentGames.isEmpty() -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFFF8FAFC))
+                            .border(0.5.dp, Color(0xFFE2E8F0), RoundedCornerShape(14.dp))
+                            .padding(18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Event,
+                            contentDescription = null,
+                            tint = SportFlowTextGray,
+                            modifier = Modifier.size(42.dp)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "Ainda não existem jogos neste torneio.",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SportFlowDarkBlue
+                        )
+                    }
+                }
+
+                else -> {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        uiState.selectedTournamentGames.forEachIndexed { index, game ->
+                            CalendarGameItem(
+                                jornada = "JOGO ${index + 1}",
+                                game = game
+                            )
+                        }
+
+                        DashedAddGameBox(onClick = onCreateGameClick)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CalendarGameItem(
+    jornada: String,
+    game: Game
+) {
+    val statusStyle = game.status.toGameStatusStyle()
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White)
+            .border(
+                width = 1.dp,
+                color = statusStyle.borderColor,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = jornada,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Black,
+                color = Color(0xFF64748B),
+                letterSpacing = 0.5.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "${game.homeTeamName ?: "Equipa casa"} vs ${game.awayTeamName ?: "Equipa fora"}",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = SportFlowDarkBlue
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "${game.dateTime.formatShortDate()} • ${game.dateTime.formatGameTime()}",
+                fontSize = 12.sp,
+                color = Color(0xFF64748B)
+            )
+            game.result?.takeIf { it.isNotBlank() }?.let { result ->
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Resultado: $result",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF047857)
+                )
+            }
+        }
+
+        Text(
+            text = statusStyle.label,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Black,
+            color = Color.White,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(statusStyle.badgeColor)
+                .padding(horizontal = 10.dp, vertical = 5.dp)
+        )
+    }
+}
+
+@Composable
+private fun DashedAddGameBox(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .border(
+                border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                shape = RoundedCornerShape(14.dp)
+            )
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Add,
+            contentDescription = "Criar jogo",
+            tint = Color(0xFF94A3B8),
+            modifier = Modifier.size(26.dp)
+        )
+    }
+}
+
+@Composable
+private fun CreateGameDialog(
+    teams: List<Team>,
+    isCreating: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (Long, Long, String) -> Unit
+) {
+    var homeTeamId by remember(teams) { mutableStateOf(teams.firstOrNull()?.id) }
+    var awayTeamId by remember(teams) { mutableStateOf(teams.drop(1).firstOrNull()?.id) }
+    var dateText by remember { mutableStateOf("") }
+    var timeText by remember { mutableStateOf("") }
+
+    val isDateValid = Regex("\\d{4}-\\d{2}-\\d{2}").matches(dateText.trim())
+    val isTimeValid = Regex("\\d{2}:\\d{2}").matches(timeText.trim())
+    val selectedDifferentTeams = homeTeamId != null && awayTeamId != null && homeTeamId != awayTeamId
+
+    AlertDialog(
+        onDismissRequest = { if (!isCreating) onDismiss() },
+        title = {
+            Text(
+                text = "Adicionar jogo",
+                fontWeight = FontWeight.Bold,
+                color = SportFlowDarkBlue
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (teams.size < 2) {
+                    Text(
+                        text = "É necessário criar pelo menos duas equipas antes de criar jogos.",
+                        fontSize = 13.sp,
+                        color = Color(0xFF64748B)
+                    )
+                } else {
+                    Text(
+                        text = "Seleciona as equipas e define a data/hora do jogo.",
+                        fontSize = 12.sp,
+                        color = Color(0xFF64748B)
+                    )
+
+                    TeamSelectorBlock(
+                        title = "Equipa casa",
+                        teams = teams,
+                        selectedTeamId = homeTeamId,
+                        enabled = !isCreating,
+                        onSelect = { homeTeamId = it }
+                    )
+
+                    TeamSelectorBlock(
+                        title = "Equipa fora",
+                        teams = teams,
+                        selectedTeamId = awayTeamId,
+                        enabled = !isCreating,
+                        onSelect = { awayTeamId = it }
+                    )
+
+                    OutlinedTextField(
+                        value = dateText,
+                        onValueChange = { dateText = it.take(10) },
+                        label = { Text("Data AAAA-MM-DD") },
+                        singleLine = true,
+                        enabled = !isCreating,
+                        isError = dateText.isNotBlank() && !isDateValid,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = timeText,
+                        onValueChange = { timeText = it.take(5) },
+                        label = { Text("Hora HH:mm") },
+                        singleLine = true,
+                        enabled = !isCreating,
+                        isError = timeText.isNotBlank() && !isTimeValid,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (!selectedDifferentTeams) {
+                        Text(
+                            text = "As equipas têm de ser diferentes.",
+                            fontSize = 11.sp,
+                            color = Color(0xFFDC2626)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val home = homeTeamId ?: return@Button
+                    val away = awayTeamId ?: return@Button
+                    val dateTime = "${dateText.trim()}T${timeText.trim()}:00Z"
+                    onConfirm(home, away, dateTime)
+                },
+                enabled = teams.size >= 2 && !isCreating && selectedDifferentTeams && isDateValid && isTimeValid,
+                colors = ButtonDefaults.buttonColors(containerColor = SportFlowGreen)
+            ) {
+                if (isCreating) {
+                    CircularProgressIndicator(
+                        color = SportFlowDarkBlue,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(16.dp)
+                    )
+                } else {
+                    Text(
+                        text = "Criar jogo",
+                        color = SportFlowDarkBlue,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isCreating
+            ) {
+                Text("Cancelar")
+            }
+        }
+    )
+}
+
+@Composable
+private fun TeamSelectorBlock(
+    title: String,
+    teams: List<Team>,
+    selectedTeamId: Long?,
+    enabled: Boolean,
+    onSelect: (Long) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = title,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF64748B)
+        )
+        teams.forEach { team ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable(enabled = enabled) { onSelect(team.id) }
+                    .background(if (selectedTeamId == team.id) Color(0xFFEFF6FF) else Color(0xFFF8FAFC))
+                    .border(
+                        width = 0.5.dp,
+                        color = if (selectedTeamId == team.id) SportFlowGreen else Color(0xFFE2E8F0),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    .padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(
+                    selected = selectedTeamId == team.id,
+                    onClick = { onSelect(team.id) },
+                    enabled = enabled
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = team.name,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SportFlowDarkBlue
+                )
+            }
+        }
+    }
+}
+
+private data class GameStatusStyle(
+    val label: String,
+    val badgeColor: Color,
+    val borderColor: Color
+)
+
+private fun String.toGameStatusStyle(): GameStatusStyle {
+    return when (uppercase(Locale.ROOT)) {
+        "EM_DECORRER" -> GameStatusStyle(
+            label = "EM DECORRER",
+            badgeColor = Color(0xFF16A34A),
+            borderColor = Color(0xFF16A34A)
+        )
+        "TERMINADO" -> GameStatusStyle(
+            label = "TERMINADO",
+            badgeColor = Color(0xFFEF4444),
+            borderColor = Color(0xFFEF4444)
+        )
+        else -> GameStatusStyle(
+            label = "AGENDADO",
+            badgeColor = Color(0xFF2563EB),
+            borderColor = Color(0xFF94A3B8)
+        )
+    }
+}
+
+private fun String.formatGameTime(): String {
+    val time = runCatching {
+        OffsetDateTime.parse(this).toLocalTime()
+    }.getOrNull()
+
+    return time?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: "--:--"
 }
 
 @Composable

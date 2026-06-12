@@ -3,9 +3,11 @@ package com.sportflow.app.ui.screens.organizador
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sportflow.app.data.repository.EnrollmentsRepository
+import com.sportflow.app.data.repository.GamesRepository
 import com.sportflow.app.data.repository.TeamsRepository
 import com.sportflow.app.data.repository.TournamentsRepository
 import com.sportflow.app.model.Enrollment
+import com.sportflow.app.model.Game
 import com.sportflow.app.model.EligiblePlayer
 import com.sportflow.app.model.Team
 import com.sportflow.app.model.Tournament
@@ -27,6 +29,10 @@ data class OrganizadorEventsUiState(
     val selectedTournamentTeams: List<Team> = emptyList(),
     val teamsErrorMessage: String? = null,
     val isCreatingTeam: Boolean = false,
+    val isLoadingGames: Boolean = false,
+    val selectedTournamentGames: List<Game> = emptyList(),
+    val gamesErrorMessage: String? = null,
+    val isCreatingGame: Boolean = false,
     val isLoadingEligiblePlayers: Boolean = false,
     val eligiblePlayers: List<EligiblePlayer> = emptyList(),
     val eligiblePlayersErrorMessage: String? = null,
@@ -37,7 +43,8 @@ data class OrganizadorEventsUiState(
 class OrganizadorEventsViewModel(
     private val tournamentsRepository: TournamentsRepository = TournamentsRepository(),
     private val enrollmentsRepository: EnrollmentsRepository = EnrollmentsRepository(),
-    private val teamsRepository: TeamsRepository = TeamsRepository()
+    private val teamsRepository: TeamsRepository = TeamsRepository(),
+    private val gamesRepository: GamesRepository = GamesRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OrganizadorEventsUiState(isLoading = true))
@@ -80,6 +87,7 @@ class OrganizadorEventsViewModel(
     fun loadManagementDataForTournament(tournamentId: Long) {
         loadEnrollmentsForTournament(tournamentId)
         loadTeamsForTournament(tournamentId)
+        loadGamesForTournament(tournamentId)
         loadEligiblePlayersForTournament(tournamentId)
     }
 
@@ -139,6 +147,78 @@ class OrganizadorEventsViewModel(
                     it.copy(
                         isLoadingTeams = false,
                         teamsErrorMessage = throwable.message ?: "Erro ao carregar equipas."
+                    )
+                }
+            }
+        }
+    }
+
+    fun loadGamesForTournament(tournamentId: Long) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isLoadingGames = true,
+                    selectedTournamentGames = emptyList(),
+                    gamesErrorMessage = null
+                )
+            }
+
+            runCatching {
+                gamesRepository.getGamesForTournament(tournamentId)
+            }.onSuccess { games ->
+                _uiState.update {
+                    it.copy(
+                        isLoadingGames = false,
+                        selectedTournamentGames = games.sortedBy { game -> game.dateTime },
+                        gamesErrorMessage = null
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isLoadingGames = false,
+                        gamesErrorMessage = throwable.message ?: "Erro ao carregar jogos."
+                    )
+                }
+            }
+        }
+    }
+
+    fun createGame(
+        tournamentId: Long,
+        homeTeamId: Long,
+        awayTeamId: Long,
+        dateTime: String
+    ) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isCreatingGame = true,
+                    gamesErrorMessage = null,
+                    actionMessage = null
+                )
+            }
+
+            runCatching {
+                gamesRepository.createGame(
+                    tournamentId = tournamentId,
+                    homeTeamId = homeTeamId,
+                    awayTeamId = awayTeamId,
+                    dateTime = dateTime
+                )
+            }.onSuccess {
+                _uiState.update {
+                    it.copy(
+                        isCreatingGame = false,
+                        actionMessage = "Jogo criado com sucesso."
+                    )
+                }
+                loadGamesForTournament(tournamentId)
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isCreatingGame = false,
+                        gamesErrorMessage = throwable.message ?: "Erro ao criar jogo."
                     )
                 }
             }
@@ -279,9 +359,11 @@ class OrganizadorEventsViewModel(
             it.copy(
                 selectedTournamentEnrollments = emptyList(),
                 selectedTournamentTeams = emptyList(),
+                selectedTournamentGames = emptyList(),
                 eligiblePlayers = emptyList(),
                 enrollmentsErrorMessage = null,
                 teamsErrorMessage = null,
+                gamesErrorMessage = null,
                 eligiblePlayersErrorMessage = null,
                 actionMessage = null
             )
