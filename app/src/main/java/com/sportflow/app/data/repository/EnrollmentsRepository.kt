@@ -6,12 +6,15 @@ import com.sportflow.app.data.remote.dto.EnrollmentInsertDto
 import com.sportflow.app.model.Enrollment
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 class EnrollmentsRepository(
-    private val tournamentsRepository: TournamentsRepository = TournamentsRepository()
+    private val tournamentsRepository: TournamentsRepository = TournamentsRepository(),
+    private val profilesRepository: ProfilesRepository = ProfilesRepository()
 ) {
 
     suspend fun enrollInTournament(tournamentId: Long) {
@@ -71,6 +74,58 @@ class EnrollmentsRepository(
                 tournament = tournamentsById[dto.tournamentId]
             )
         }
+    }
+
+    suspend fun getEnrollmentsForTournament(tournamentId: Long): List<Enrollment> {
+        val enrollmentDtos = SupabaseProvider.client
+            .from("inscricoes")
+            .select {
+                filter {
+                    eq("torneio_id", tournamentId)
+                }
+            }
+            .decodeList<EnrollmentDto>()
+
+        val tournament = tournamentsRepository
+            .getTournaments()
+            .firstOrNull { it.id == tournamentId }
+
+        return enrollmentDtos.map { dto ->
+            val profile = runCatching { profilesRepository.getProfile(dto.userId) }.getOrNull()
+
+            Enrollment(
+                id = dto.id,
+                userId = dto.userId,
+                tournamentId = dto.tournamentId,
+                registeredAt = dto.registeredAt,
+                status = dto.estado,
+                paymentStatus = dto.pagamento,
+                tournament = tournament,
+                userName = profile?.nome,
+                userEmail = profile?.email
+            )
+        }
+    }
+
+    suspend fun updateEnrollmentStatus(
+        enrollmentId: Long,
+        status: String
+    ) {
+        require(status == "APROVADA" || status == "REJEITADA" || status == "PENDENTE") {
+            "Estado de inscrição inválido."
+        }
+
+        SupabaseProvider.client
+            .from("inscricoes")
+            .update(
+                buildJsonObject {
+                    put("estado", status)
+                }
+            ) {
+                filter {
+                    eq("id", enrollmentId)
+                }
+            }
     }
 
     private fun currentUserId(): String {
