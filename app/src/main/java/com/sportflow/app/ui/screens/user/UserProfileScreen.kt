@@ -61,6 +61,7 @@ fun UserProfileScreen(
     
     val profileState by viewModel.profileState.collectAsState()
     val pendingUsers by adminViewModel.pendingUsers.collectAsState()
+    val adminError by adminViewModel.errorMessage.collectAsState()
 
     var showLanguagePicker by remember { mutableStateOf(false) }
     var showNotificationsDialog by remember { mutableStateOf(false) }
@@ -117,14 +118,27 @@ fun UserProfileScreen(
             }
         }
         is ProfileState.Error -> {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(text = (profileState as ProfileState.Error).message, color = Color.Red)
+            Column(
+                modifier = Modifier.fillMaxSize().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(imageVector = Icons.Default.ErrorOutline, contentDescription = null, tint = Color.Red, modifier = Modifier.size(48.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(text = (profileState as ProfileState.Error).message, color = Color.Red, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Spacer(modifier = Modifier.height(24.dp))
+                Button(
+                    onClick = onLogout,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFEE2E2), contentColor = Color(0xFF991B1B)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Voltar ao Login")
+                }
             }
         }
         is ProfileState.Success -> {
             val profile = (profileState as ProfileState.Success).profile
             
-            // Forçar refresh dos utilizadores pendentes se for ADMIN
             androidx.compose.runtime.LaunchedEffect(profile.papel) {
                 if (profile.papel == "ADMIN") {
                     adminViewModel.loadPendingUsers()
@@ -184,18 +198,31 @@ fun UserProfileScreen(
                 }
 
                 // 2. ADMIN ONLY: Pendidos de Aprovação
-                if (profile.papel == "ADMIN" && pendingUsers.isNotEmpty()) {
-                    item {
-                        SectionTitle(title = "APROVAÇÕES PENDENTES")
+                if (profile.papel == "ADMIN") {
+                    if (adminError != null) {
+                        item {
+                            Text(
+                                text = adminError!!,
+                                color = Color.Red,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                            )
+                        }
                     }
-                    items(pendingUsers) { pendingUser ->
-                        PendingUserItem(
-                            user = pendingUser,
-                            onApprove = { adminViewModel.approveUser(pendingUser.id) },
-                            onReject = { adminViewModel.rejectUser(pendingUser.id) }
-                        )
+                    
+                    if (pendingUsers.isNotEmpty()) {
+                        item {
+                            SectionTitle(title = "APROVAÇÕES PENDENTES")
+                        }
+                        items(pendingUsers) { pendingUser ->
+                            PendingUserItem(
+                                user = pendingUser,
+                                onApprove = { adminViewModel.approveUser(pendingUser.id) },
+                                onReject = { adminViewModel.rejectUser(pendingUser.id) }
+                            )
+                        }
+                        item { Spacer(modifier = Modifier.height(16.dp)) }
                     }
-                    item { Spacer(modifier = Modifier.height(16.dp)) }
                 }
 
                 // 3. DADOS DA CONTA

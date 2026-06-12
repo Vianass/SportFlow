@@ -107,8 +107,22 @@ fun AdminProfileScreen(
             }
         }
         is ProfileState.Error -> {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(text = (profileState as ProfileState.Error).message, color = Color.Red)
+            Column(
+                modifier = Modifier.fillMaxSize().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(imageVector = Icons.Default.ErrorOutline, contentDescription = null, tint = Color.Red, modifier = Modifier.size(48.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(text = (profileState as ProfileState.Error).message, color = Color.Red, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Spacer(modifier = Modifier.height(24.dp))
+                Button(
+                    onClick = onLogout,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFEE2E2), contentColor = Color(0xFF991B1B)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Voltar ao Login")
+                }
             }
         }
         is ProfileState.Success -> {
