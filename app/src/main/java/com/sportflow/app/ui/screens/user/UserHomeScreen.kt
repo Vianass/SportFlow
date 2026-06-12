@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sportflow.app.model.Game
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
 import com.sportflow.app.ui.theme.SportFlowTextGray
@@ -45,7 +46,7 @@ data class LiveEvent(
     val title: String,
     val statusLabel: String,
     val statusValue: String,
-    val progress: Float,
+    val progress: Float? = null,
     val icon: ImageVector,
     val isDarkTheme: Boolean = false,
     val type: String = "MATCH"
@@ -67,7 +68,6 @@ fun UserHomeScreen(
     onNavigateToEvents: () -> Unit = {},
     viewModel: UserEventsViewModel = viewModel()
 ) {
-    var selectedLiveEvent by remember { mutableStateOf<LiveEvent?>(null) }
     var selectedUpcomingEvent by remember { mutableStateOf<TournamentEvent?>(null) }
 
     var selectedSportFilter by remember { mutableStateOf("Todas") }
@@ -77,32 +77,6 @@ fun UserHomeScreen(
     var showCalendarDialog by remember { mutableStateOf(false) }
 
     val uiState by viewModel.uiState.collectAsState()
-
-    if (uiState.enrollmentSuccessMessage != null) {
-        AlertDialog(
-            onDismissRequest = viewModel::clearEnrollmentFeedback,
-            confirmButton = {
-                TextButton(onClick = viewModel::clearEnrollmentFeedback) {
-                    Text("OK")
-                }
-            },
-            title = { Text("Inscrição criada") },
-            text = { Text(uiState.enrollmentSuccessMessage ?: "") }
-        )
-    }
-
-    if (uiState.enrollmentErrorMessage != null) {
-        AlertDialog(
-            onDismissRequest = viewModel::clearEnrollmentFeedback,
-            confirmButton = {
-                TextButton(onClick = viewModel::clearEnrollmentFeedback) {
-                    Text("OK")
-                }
-            },
-            title = { Text("Erro na inscrição") },
-            text = { Text(uiState.enrollmentErrorMessage ?: "") }
-        )
-    }
 
     if (showFilterDialog) {
         com.sportflow.app.ui.components.EventsFilterDialog(
@@ -128,58 +102,16 @@ fun UserHomeScreen(
         )
     }
 
-    if (selectedLiveEvent != null) {
-        com.sportflow.app.ui.components.LiveMatchDialog(
-            event = selectedLiveEvent!!,
-            onDismiss = { selectedLiveEvent = null }
-        )
-    }
-
     if (selectedUpcomingEvent != null) {
         com.sportflow.app.ui.components.TournamentEnrollDialog(
             tournament = selectedUpcomingEvent!!,
-            onEnroll = {
-                selectedUpcomingEvent?.let { tournament ->
-                    viewModel.enrollInTournament(tournament.id)
-                }
-                selectedUpcomingEvent = null
-            },
+            onEnroll = { selectedUpcomingEvent = null },
             onDismiss = { selectedUpcomingEvent = null }
         )
     }
 
-    // Mock data for Live Events
-    val liveEvents = remember {
-        listOf(
-            LiveEvent(
-                category = "LIGA AMADORA DE LISBOA",
-                title = "Futebol 7: Final do Torneio",
-                statusLabel = "Progresso do Jogo",
-                statusValue = "72'",
-                progress = 0.8f,
-                icon = Icons.Default.SportsFootball,
-                isDarkTheme = false
-            ),
-            LiveEvent(
-                category = "MEETING DE ATLETISMO",
-                title = "100m Barreiras - Final",
-                statusLabel = "Chamada de Atletas",
-                statusValue = "Em curso",
-                progress = 0.45f,
-                icon = Icons.Default.DirectionsRun,
-                isDarkTheme = true,
-                type = "RACE"
-            ),
-            LiveEvent(
-                category = "OPEN DE TÉNIS DE BRAGA",
-                title = "Mesa 1: Individual Masc.",
-                statusLabel = "Set 3/5",
-                statusValue = "15 - 40",
-                progress = 0.85f,
-                icon = Icons.Default.SportsTennis,
-                isDarkTheme = false
-            )
-        )
+    val liveEvents = remember(uiState.liveGames) {
+        uiState.liveGames.map { game -> game.toLiveEvent() }
     }
 
     val upcomingEvents = remember(uiState.tournaments) {
@@ -224,8 +156,29 @@ fun UserHomeScreen(
             )
         }
 
-        items(liveEvents) { event ->
-            LiveEventCard(event = event, onClick = { selectedLiveEvent = event })
+        when {
+            uiState.liveGamesErrorMessage != null -> {
+                item {
+                    LiveEventsErrorState(
+                        message = uiState.liveGamesErrorMessage,
+                        onRetry = viewModel::loadLiveGames
+                    )
+                }
+            }
+
+            uiState.isLoadingLiveGames -> {
+                item { LiveEventsLoadingState() }
+            }
+
+            liveEvents.isEmpty() -> {
+                item { LiveEventsEmptyState() }
+            }
+
+            else -> {
+                items(liveEvents) { event ->
+                    LiveEventCard(event = event)
+                }
+            }
         }
 
         // 3. Próximos Eventos (Upcoming Events) Section
@@ -602,18 +555,132 @@ fun LiveEventCard(event: LiveEvent, onClick: () -> Unit = {}) {
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            event.progress?.let { progress ->
+                Spacer(modifier = Modifier.height(8.dp))
 
-            LinearProgressIndicator(
-                progress = { event.progress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(5.dp)
-                    .clip(RoundedCornerShape(3.dp)),
-                color = SportFlowGreen,
-                trackColor = if (event.isDarkTheme) Color.White.copy(alpha = 0.1f) else Color(0xFFE2E8F0)
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(5.dp)
+                        .clip(RoundedCornerShape(3.dp)),
+                    color = SportFlowGreen,
+                    trackColor = if (event.isDarkTheme) Color.White.copy(alpha = 0.1f) else Color(0xFFE2E8F0)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LiveEventsLoadingState() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 20.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator(
+            color = SportFlowGreen,
+            modifier = Modifier.size(28.dp)
+        )
+    }
+}
+
+@Composable
+private fun LiveEventsErrorState(
+    message: String?,
+    onRetry: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFFFF1F2))
+            .border(0.5.dp, Color(0xFFFECACA), RoundedCornerShape(12.dp))
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = Icons.Default.Info,
+            contentDescription = null,
+            tint = Color(0xFFDC2626),
+            modifier = Modifier.size(32.dp)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = message ?: "Erro ao carregar eventos a decorrer.",
+            fontSize = 12.sp,
+            color = Color(0xFF991B1B),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        TextButton(onClick = onRetry) {
+            Text(
+                text = "Tentar novamente",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFDC2626)
             )
         }
+    }
+}
+
+@Composable
+private fun LiveEventsEmptyState() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White)
+            .border(0.5.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp))
+            .padding(18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = Icons.Default.Event,
+            contentDescription = null,
+            tint = Color(0xFF94A3B8),
+            modifier = Modifier.size(40.dp)
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            text = "Sem eventos a decorrer",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = SportFlowDarkBlue
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "Quando o organizador iniciar um jogo, ele aparece aqui.",
+            fontSize = 12.sp,
+            color = Color(0xFF64748B),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+    }
+}
+
+private fun Game.toLiveEvent(): LiveEvent {
+    return LiveEvent(
+        category = tournamentName?.uppercase(Locale.ROOT) ?: "JOGO EM DECORRER",
+        title = "${homeTeamName ?: "Equipa casa"} vs ${awayTeamName ?: "Equipa fora"}",
+        statusLabel = tournamentLocation ?: "Local a definir",
+        statusValue = "Em curso",
+        progress = null,
+        icon = sport.toHomeSportIcon(),
+        isDarkTheme = false
+    )
+}
+
+private fun String?.toHomeSportIcon(): ImageVector {
+    return when (this?.uppercase(Locale.ROOT)) {
+        "SOCCER" -> Icons.Default.SportsSoccer
+        "BASKETBALL" -> Icons.Default.SportsBasketball
+        "TENNIS" -> Icons.Default.SportsTennis
+        "PADEL" -> Icons.Default.SportsTennis
+        else -> Icons.Default.EmojiEvents
     }
 }
 

@@ -75,6 +75,19 @@ fun OrganizadorEventsScreen(
                     dateTime = dateTime
                 )
             },
+            onStartGame = { gameId ->
+                viewModel.startGame(
+                    tournamentId = tournament.id,
+                    gameId = gameId
+                )
+            },
+            onFinishGame = { gameId, result ->
+                viewModel.finishGame(
+                    tournamentId = tournament.id,
+                    gameId = gameId,
+                    result = result
+                )
+            },
             onLoadEligiblePlayers = { viewModel.loadEligiblePlayersForTournament(tournament.id) },
             onAssociatePlayer = { teamId, playerId, shirtNumber ->
                 viewModel.associatePlayerToTeam(
@@ -210,6 +223,8 @@ fun OrganizadorEventDetailScreen(
     onRetryGames: () -> Unit,
     onCreateTeam: (String) -> Unit,
     onCreateGame: (Long, Long, String) -> Unit,
+    onStartGame: (Long) -> Unit,
+    onFinishGame: (Long, String) -> Unit,
     onLoadEligiblePlayers: () -> Unit,
     onAssociatePlayer: (Long, String, Int?) -> Unit,
     onApproveEnrollment: (Long) -> Unit,
@@ -217,6 +232,7 @@ fun OrganizadorEventDetailScreen(
 ) {
     var showCreateTeamDialog by remember { mutableStateOf(false) }
     var showCreateGameDialog by remember { mutableStateOf(false) }
+    var gameToFinish by remember { mutableStateOf<Game?>(null) }
     var teamForPlayerAssociation by remember { mutableStateOf<Team?>(null) }
     val confirmedPlayers = uiState.selectedTournamentEnrollments.count { enrollment ->
         enrollment.status.equals("APROVADA", ignoreCase = true) &&
@@ -242,6 +258,18 @@ fun OrganizadorEventDetailScreen(
             onConfirm = { homeTeamId, awayTeamId, dateTime ->
                 onCreateGame(homeTeamId, awayTeamId, dateTime)
                 showCreateGameDialog = false
+            }
+        )
+    }
+
+    gameToFinish?.let { game ->
+        FinishGameDialog(
+            game = game,
+            isUpdating = uiState.updatingGameId == game.id,
+            onDismiss = { gameToFinish = null },
+            onConfirm = { result ->
+                onFinishGame(game.id, result)
+                gameToFinish = null
             }
         )
     }
@@ -335,7 +363,9 @@ fun OrganizadorEventDetailScreen(
             CalendarGamesSection(
                 uiState = uiState,
                 onRetry = onRetryGames,
-                onCreateGameClick = { showCreateGameDialog = true }
+                onCreateGameClick = { showCreateGameDialog = true },
+                onStartGame = onStartGame,
+                onFinishGameClick = { game -> gameToFinish = game }
             )
         }
 
@@ -1069,7 +1099,9 @@ private fun CreateTeamDialog(
 private fun CalendarGamesSection(
     uiState: OrganizadorEventsUiState,
     onRetry: () -> Unit,
-    onCreateGameClick: () -> Unit
+    onCreateGameClick: () -> Unit,
+    onStartGame: (Long) -> Unit,
+    onFinishGameClick: (Game) -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -1213,7 +1245,10 @@ private fun CalendarGamesSection(
                         uiState.selectedTournamentGames.forEachIndexed { index, game ->
                             CalendarGameItem(
                                 jornada = "JOGO ${index + 1}",
-                                game = game
+                                game = game,
+                                isUpdating = uiState.updatingGameId == game.id,
+                                onStartGame = { onStartGame(game.id) },
+                                onFinishGame = { onFinishGameClick(game) }
                             )
                         }
 
@@ -1228,11 +1263,15 @@ private fun CalendarGamesSection(
 @Composable
 private fun CalendarGameItem(
     jornada: String,
-    game: Game
+    game: Game,
+    isUpdating: Boolean,
+    onStartGame: () -> Unit,
+    onFinishGame: () -> Unit
 ) {
     val statusStyle = game.status.toGameStatusStyle()
+    val normalizedStatus = game.status.uppercase(Locale.ROOT)
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
@@ -1242,51 +1281,89 @@ private fun CalendarGameItem(
                 color = statusStyle.borderColor,
                 shape = RoundedCornerShape(12.dp)
             )
-            .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(14.dp)
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = jornada,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Black,
-                color = Color(0xFF64748B),
-                letterSpacing = 0.5.sp
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "${game.homeTeamName ?: "Equipa casa"} vs ${game.awayTeamName ?: "Equipa fora"}",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = SportFlowDarkBlue
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "${game.dateTime.formatShortDate()} • ${game.dateTime.formatGameTime()}",
-                fontSize = 12.sp,
-                color = Color(0xFF64748B)
-            )
-            game.result?.takeIf { it.isNotBlank() }?.let { result ->
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = jornada,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color(0xFF64748B),
+                    letterSpacing = 0.5.sp
+                )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Resultado: $result",
-                    fontSize = 12.sp,
+                    text = "${game.homeTeamName ?: "Equipa casa"} vs ${game.awayTeamName ?: "Equipa fora"}",
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF047857)
+                    color = SportFlowDarkBlue
                 )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "${game.dateTime.formatShortDate()} • ${game.dateTime.formatGameTime()}",
+                    fontSize = 12.sp,
+                    color = Color(0xFF64748B)
+                )
+                game.result?.takeIf { it.isNotBlank() }?.let { result ->
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Resultado: $result",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF047857)
+                    )
+                }
             }
+
+            Text(
+                text = statusStyle.label,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Black,
+                color = Color.White,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(statusStyle.badgeColor)
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
+            )
         }
 
-        Text(
-            text = statusStyle.label,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Black,
-            color = Color.White,
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(statusStyle.badgeColor)
-                .padding(horizontal = 10.dp, vertical = 5.dp)
-        )
+        if (normalizedStatus == "NAO_INICIADO" || normalizedStatus == "EM_DECORRER") {
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = if (normalizedStatus == "NAO_INICIADO") onStartGame else onFinishGame,
+                    enabled = !isUpdating,
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, if (normalizedStatus == "NAO_INICIADO") SportFlowGreen else Color(0xFFEF4444)),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = if (normalizedStatus == "NAO_INICIADO") SportFlowGreen else Color(0xFFEF4444)
+                    ),
+                    modifier = Modifier.height(34.dp)
+                ) {
+                    if (isUpdating) {
+                        CircularProgressIndicator(
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(14.dp),
+                            color = if (normalizedStatus == "NAO_INICIADO") SportFlowGreen else Color(0xFFEF4444)
+                        )
+                    } else {
+                        Text(
+                            text = if (normalizedStatus == "NAO_INICIADO") "INICIAR" else "TERMINAR",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1311,6 +1388,80 @@ private fun DashedAddGameBox(onClick: () -> Unit) {
             modifier = Modifier.size(26.dp)
         )
     }
+}
+
+@Composable
+private fun FinishGameDialog(
+    game: Game,
+    isUpdating: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var resultText by remember(game.id) { mutableStateOf(game.result.orEmpty()) }
+    val canSubmit = resultText.trim().isNotBlank()
+
+    AlertDialog(
+        onDismissRequest = { if (!isUpdating) onDismiss() },
+        title = {
+            Text(
+                text = "Terminar jogo",
+                fontWeight = FontWeight.Bold,
+                color = SportFlowDarkBlue
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "${game.homeTeamName ?: "Equipa casa"} vs ${game.awayTeamName ?: "Equipa fora"}",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SportFlowDarkBlue
+                )
+                Text(
+                    text = "Indica o resultado final antes de terminar o jogo.",
+                    fontSize = 12.sp,
+                    color = Color(0xFF64748B)
+                )
+                OutlinedTextField(
+                    value = resultText,
+                    onValueChange = { resultText = it.take(20) },
+                    label = { Text("Resultado, ex: 2-1") },
+                    singleLine = true,
+                    enabled = !isUpdating,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(resultText.trim()) },
+                enabled = !isUpdating && canSubmit,
+                colors = ButtonDefaults.buttonColors(containerColor = SportFlowGreen)
+            ) {
+                if (isUpdating) {
+                    CircularProgressIndicator(
+                        color = SportFlowDarkBlue,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(16.dp)
+                    )
+                } else {
+                    Text(
+                        text = "Terminar jogo",
+                        color = SportFlowDarkBlue,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isUpdating
+            ) {
+                Text("Cancelar")
+            }
+        }
+    )
 }
 
 @Composable

@@ -3,7 +3,9 @@ package com.sportflow.app.ui.screens.user
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sportflow.app.data.repository.EnrollmentsRepository
+import com.sportflow.app.data.repository.GamesRepository
 import com.sportflow.app.data.repository.TournamentsRepository
+import com.sportflow.app.model.Game
 import com.sportflow.app.model.Tournament
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,12 +19,16 @@ data class UserEventsUiState(
     val errorMessage: String? = null,
     val isEnrolling: Boolean = false,
     val enrollmentSuccessMessage: String? = null,
-    val enrollmentErrorMessage: String? = null
+    val enrollmentErrorMessage: String? = null,
+    val isLoadingLiveGames: Boolean = false,
+    val liveGames: List<Game> = emptyList(),
+    val liveGamesErrorMessage: String? = null
 )
 
 class UserEventsViewModel(
     private val tournamentsRepository: TournamentsRepository = TournamentsRepository(),
-    private val enrollmentsRepository: EnrollmentsRepository = EnrollmentsRepository()
+    private val enrollmentsRepository: EnrollmentsRepository = EnrollmentsRepository(),
+    private val gamesRepository: GamesRepository = GamesRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(UserEventsUiState(isLoading = true))
@@ -30,6 +36,7 @@ class UserEventsViewModel(
 
     init {
         loadTournaments()
+        loadLiveGames()
     }
 
     fun loadTournaments() {
@@ -78,7 +85,7 @@ class UserEventsViewModel(
                 _uiState.update {
                     it.copy(
                         isEnrolling = false,
-                        enrollmentSuccessMessage = "Inscrição criada com sucesso. Finaliza o pagamento na área Inscrições.",
+                        enrollmentSuccessMessage = "Inscrição criada com sucesso. Aguarda aprovação do organizador.",
                         enrollmentErrorMessage = null
                     )
                 }
@@ -100,6 +107,36 @@ class UserEventsViewModel(
                 enrollmentSuccessMessage = null,
                 enrollmentErrorMessage = null
             )
+        }
+    }
+
+    fun loadLiveGames() {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isLoadingLiveGames = true,
+                    liveGamesErrorMessage = null
+                )
+            }
+
+            runCatching {
+                gamesRepository.getOngoingGames()
+            }.onSuccess { games ->
+                _uiState.update {
+                    it.copy(
+                        isLoadingLiveGames = false,
+                        liveGames = games,
+                        liveGamesErrorMessage = null
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isLoadingLiveGames = false,
+                        liveGamesErrorMessage = throwable.message ?: "Erro ao carregar eventos a decorrer."
+                    )
+                }
+            }
         }
     }
 }

@@ -9,5 +9,8 @@ data class Game(
     val result: String?,
     val status: String,
     val homeTeamName: String? = null,
-    val awayTeamName: String? = null
+    val awayTeamName: String? = null,
+    val tournamentName: String? = null,
+    val tournamentLocation: String? = null,
+    val sport: String? = null
 )

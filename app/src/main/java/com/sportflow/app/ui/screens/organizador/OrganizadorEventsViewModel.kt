@@ -33,6 +33,7 @@ data class OrganizadorEventsUiState(
     val selectedTournamentGames: List<Game> = emptyList(),
     val gamesErrorMessage: String? = null,
     val isCreatingGame: Boolean = false,
+    val updatingGameId: Long? = null,
     val isLoadingEligiblePlayers: Boolean = false,
     val eligiblePlayers: List<EligiblePlayer> = emptyList(),
     val eligiblePlayersErrorMessage: String? = null,
@@ -224,6 +225,33 @@ class OrganizadorEventsViewModel(
             }
         }
     }
+    fun startGame(tournamentId: Long, gameId: Long) {
+        updateGameStatus(
+            tournamentId = tournamentId,
+            gameId = gameId,
+            successMessage = "Jogo iniciado com sucesso."
+        ) {
+            gamesRepository.startGame(
+                tournamentId = tournamentId,
+                gameId = gameId
+            )
+        }
+    }
+
+    fun finishGame(tournamentId: Long, gameId: Long, result: String) {
+        updateGameStatus(
+            tournamentId = tournamentId,
+            gameId = gameId,
+            successMessage = "Jogo terminado com sucesso."
+        ) {
+            gamesRepository.finishGame(
+                tournamentId = tournamentId,
+                gameId = gameId,
+                result = result
+            )
+        }
+    }
+
 
     fun createTeam(tournamentId: Long, name: String) {
         viewModelScope.launch {
@@ -367,6 +395,42 @@ class OrganizadorEventsViewModel(
                 eligiblePlayersErrorMessage = null,
                 actionMessage = null
             )
+        }
+    }
+
+    private fun updateGameStatus(
+        tournamentId: Long,
+        gameId: Long,
+        successMessage: String,
+        updateAction: suspend () -> Unit
+    ) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    updatingGameId = gameId,
+                    gamesErrorMessage = null,
+                    actionMessage = null
+                )
+            }
+
+            runCatching {
+                updateAction()
+            }.onSuccess {
+                _uiState.update {
+                    it.copy(
+                        updatingGameId = null,
+                        actionMessage = successMessage
+                    )
+                }
+                loadGamesForTournament(tournamentId)
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        updatingGameId = null,
+                        gamesErrorMessage = throwable.message ?: "Erro ao atualizar jogo."
+                    )
+                }
+            }
         }
     }
 
