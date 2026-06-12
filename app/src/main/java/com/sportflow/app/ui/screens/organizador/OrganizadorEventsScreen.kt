@@ -1,11 +1,16 @@
 package com.sportflow.app.ui.screens.organizador
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -20,8 +25,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -38,6 +45,7 @@ import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
 import com.sportflow.app.ui.theme.SportFlowTextGray
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -871,28 +879,47 @@ private fun AssociatePlayerDialog(
 
     AlertDialog(
         onDismissRequest = { if (!isAssociating) onDismiss() },
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.White,
         title = {
-            Text(
-                text = "Associar jogador",
-                fontWeight = FontWeight.Bold,
-                color = SportFlowDarkBlue
-            )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "Equipa: ${team.name}",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
+                    text = "Associar jogador",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Black,
                     color = SportFlowDarkBlue
                 )
-
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(Color(0xFFEFF6FF))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Groups,
+                        contentDescription = null,
+                        tint = SportFlowGreen,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = team.name,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black,
+                        color = SportFlowDarkBlue
+                    )
+                }
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 when {
                     isLoading -> {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 22.dp),
+                                .padding(vertical = 28.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             CircularProgressIndicator(color = SportFlowGreen)
@@ -900,77 +927,80 @@ private fun AssociatePlayerDialog(
                     }
 
                     errorMessage != null -> {
-                        Text(
-                            text = errorMessage,
-                            fontSize = 12.sp,
-                            color = Color(0xFFDC2626)
-                        )
-                        OutlinedButton(onClick = onRetry) {
-                            Text("Tentar novamente")
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFFFFF1F2))
+                                .padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                text = errorMessage,
+                                fontSize = 12.sp,
+                                color = Color(0xFFDC2626),
+                                lineHeight = 16.sp
+                            )
+                            OutlinedButton(onClick = onRetry) {
+                                Text("Tentar novamente")
+                            }
                         }
                     }
 
                     eligiblePlayers.isEmpty() -> {
-                        Text(
-                            text = "Não há jogadores aprovados e pagos disponíveis para associar.",
-                            fontSize = 13.sp,
-                            color = Color(0xFF64748B),
-                            lineHeight = 18.sp
-                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFFF8FAFC))
+                                .border(0.5.dp, Color(0xFFE2E8F0), RoundedCornerShape(14.dp))
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.HowToReg,
+                                contentDescription = null,
+                                tint = SportFlowTextGray,
+                                modifier = Modifier.size(34.dp)
+                            )
+                            Text(
+                                text = "Sem jogadores disponíveis",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Black,
+                                color = SportFlowDarkBlue
+                            )
+                            Text(
+                                text = "Só aparecem atletas aprovados, pagos e ainda sem equipa.",
+                                fontSize = 12.sp,
+                                color = Color(0xFF64748B),
+                                lineHeight = 16.sp
+                            )
+                        }
                     }
 
                     else -> {
                         Text(
-                            text = "Seleciona um atleta aprovado e com pagamento confirmado.",
+                            text = "Escolhe um atleta aprovado e com pagamento confirmado.",
                             fontSize = 12.sp,
-                            color = Color(0xFF64748B)
+                            color = Color(0xFF64748B),
+                            lineHeight = 16.sp
                         )
 
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(max = 220.dp),
+                                .heightIn(max = 260.dp)
+                                .verticalScroll(rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             eligiblePlayers.forEach { player ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .clickable(enabled = !isAssociating) {
-                                            selectedPlayerId = player.playerId
-                                        }
-                                        .background(
-                                            if (selectedPlayerId == player.playerId) Color(0xFFEFF6FF) else Color(0xFFF8FAFC)
-                                        )
-                                        .border(
-                                            width = 0.5.dp,
-                                            color = if (selectedPlayerId == player.playerId) SportFlowGreen else Color(0xFFE2E8F0),
-                                            shape = RoundedCornerShape(10.dp)
-                                        )
-                                        .padding(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    RadioButton(
-                                        selected = selectedPlayerId == player.playerId,
-                                        onClick = { selectedPlayerId = player.playerId },
-                                        enabled = !isAssociating
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = player.name,
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = SportFlowDarkBlue
-                                        )
-                                        Text(
-                                            text = player.email,
-                                            fontSize = 10.sp,
-                                            color = Color(0xFF64748B)
-                                        )
-                                    }
-                                }
+                                PlayerAssociationOption(
+                                    player = player,
+                                    selected = selectedPlayerId == player.playerId,
+                                    enabled = !isAssociating,
+                                    onClick = { selectedPlayerId = player.playerId }
+                                )
                             }
                         }
 
@@ -979,13 +1009,26 @@ private fun AssociatePlayerDialog(
                             onValueChange = { value ->
                                 shirtNumberText = value.filter { char -> char.isDigit() }.take(3)
                             },
-                            label = { Text("Número da camisola opcional") },
+                            label = { Text("Número da camisola") },
+                            placeholder = { Text("Opcional") },
+                            leadingIcon = {
+                                Text(
+                                    text = "#",
+                                    fontWeight = FontWeight.Black,
+                                    color = SportFlowGreen
+                                )
+                            },
                             singleLine = true,
                             enabled = !isAssociating,
                             isError = isShirtNumberInvalid,
                             supportingText = if (isShirtNumberInvalid) {
                                 { Text("Insere um número válido.") }
-                            } else null,
+                            } else {
+                                { Text("Podes deixar em branco se ainda não houver número definido.") }
+                            },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = sportFlowTextFieldColors(),
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -999,7 +1042,14 @@ private fun AssociatePlayerDialog(
                     onConfirm(playerId, parsedShirtNumber)
                 },
                 enabled = !isLoading && !isAssociating && selectedPlayerId != null && !isShirtNumberInvalid,
-                colors = ButtonDefaults.buttonColors(containerColor = SportFlowGreen)
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SportFlowGreen,
+                    contentColor = SportFlowDarkBlue,
+                    disabledContainerColor = Color(0xFFE2E8F0),
+                    disabledContentColor = Color(0xFF94A3B8)
+                ),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 if (isAssociating) {
                     CircularProgressIndicator(
@@ -1009,9 +1059,9 @@ private fun AssociatePlayerDialog(
                     )
                 } else {
                     Text(
-                        text = "Associar",
-                        color = SportFlowDarkBlue,
-                        fontWeight = FontWeight.Bold
+                        text = "ASSOCIAR JOGADOR",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black
                     )
                 }
             }
@@ -1019,12 +1069,82 @@ private fun AssociatePlayerDialog(
         dismissButton = {
             TextButton(
                 onClick = onDismiss,
-                enabled = !isAssociating
+                enabled = !isAssociating,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Cancelar")
+                Text(
+                    text = "Cancelar",
+                    color = Color(0xFF64748B),
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     )
+}
+
+@Composable
+private fun PlayerAssociationOption(
+    player: EligiblePlayer,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+            .background(if (selected) Color(0xFFEFF6FF) else Color(0xFFF8FAFC))
+            .border(
+                width = if (selected) 1.dp else 0.5.dp,
+                color = if (selected) SportFlowGreen else Color(0xFFE2E8F0),
+                shape = RoundedCornerShape(14.dp)
+            )
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (selected) SportFlowGreen.copy(alpha = 0.18f) else Color(0xFFE2E8F0)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = player.name.toInitials(),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Black,
+                color = if (selected) SportFlowGreen else Color(0xFF64748B)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = player.name,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Black,
+                color = SportFlowDarkBlue
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = player.email,
+                fontSize = 10.sp,
+                color = Color(0xFF64748B),
+                lineHeight = 13.sp
+            )
+        }
+
+        if (selected) {
+            Icon(
+                imageVector = Icons.Default.CheckCircle,
+                contentDescription = null,
+                tint = SportFlowGreen,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+    }
 }
 
 @Composable
@@ -1542,24 +1662,18 @@ private fun CreateGameDialog(
                         onSelect = { awayTeamId = it }
                     )
 
-                    OutlinedTextField(
+                    DateInputField(
                         value = dateText,
-                        onValueChange = { dateText = it.take(10) },
-                        label = { Text("Data AAAA-MM-DD") },
-                        singleLine = true,
                         enabled = !isCreating,
                         isError = dateText.isNotBlank() && !isDateValid,
-                        modifier = Modifier.fillMaxWidth()
+                        onValueChange = { dateText = it }
                     )
 
-                    OutlinedTextField(
+                    TimeInputField(
                         value = timeText,
-                        onValueChange = { timeText = it.take(5) },
-                        label = { Text("Hora HH:mm") },
-                        singleLine = true,
                         enabled = !isCreating,
                         isError = timeText.isNotBlank() && !isTimeValid,
-                        modifier = Modifier.fillMaxWidth()
+                        onValueChange = { timeText = it }
                     )
 
                     if (!selectedDifferentTeams) {
@@ -1607,6 +1721,158 @@ private fun CreateGameDialog(
             }
         }
     )
+}
+
+@Composable
+private fun DateInputField(
+    value: String,
+    enabled: Boolean,
+    isError: Boolean,
+    onValueChange: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val selectedDate = remember(value) {
+        runCatching { LocalDate.parse(value) }.getOrNull() ?: LocalDate.now()
+    }
+
+    fun openPicker() {
+        DatePickerDialog(
+            context,
+            { _, year, month, dayOfMonth ->
+                onValueChange(
+                    LocalDate.of(year, month + 1, dayOfMonth)
+                        .format(DateTimeFormatter.ISO_LOCAL_DATE)
+                )
+            },
+            selectedDate.year,
+            selectedDate.monthValue - 1,
+            selectedDate.dayOfMonth
+        ).show()
+    }
+
+    OutlinedTextField(
+        value = value,
+        onValueChange = {},
+        readOnly = true,
+        label = { Text("Data") },
+        placeholder = { Text("Selecionar data") },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Default.DateRange,
+                contentDescription = null,
+                tint = SportFlowGreen
+            )
+        },
+        trailingIcon = {
+            IconButton(
+                onClick = { if (enabled) openPicker() },
+                enabled = enabled
+            ) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = "Selecionar data",
+                    tint = Color(0xFF64748B)
+                )
+            }
+        },
+        singleLine = true,
+        enabled = enabled,
+        isError = isError,
+        supportingText = if (isError) {
+            { Text("Seleciona uma data válida.") }
+        } else null,
+        shape = RoundedCornerShape(14.dp),
+        colors = sportFlowTextFieldColors(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled) { openPicker() }
+    )
+}
+
+@Composable
+private fun TimeInputField(
+    value: String,
+    enabled: Boolean,
+    isError: Boolean,
+    onValueChange: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val selectedTime = remember(value) {
+        runCatching { LocalTime.parse(value) }.getOrNull() ?: LocalTime.of(9, 0)
+    }
+
+    fun openPicker() {
+        TimePickerDialog(
+            context,
+            { _, hourOfDay, minute ->
+                onValueChange("%02d:%02d".format(Locale.ROOT, hourOfDay, minute))
+            },
+            selectedTime.hour,
+            selectedTime.minute,
+            true
+        ).show()
+    }
+
+    OutlinedTextField(
+        value = value,
+        onValueChange = {},
+        readOnly = true,
+        label = { Text("Hora") },
+        placeholder = { Text("Selecionar hora") },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Default.Schedule,
+                contentDescription = null,
+                tint = SportFlowGreen
+            )
+        },
+        trailingIcon = {
+            IconButton(
+                onClick = { if (enabled) openPicker() },
+                enabled = enabled
+            ) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = "Selecionar hora",
+                    tint = Color(0xFF64748B)
+                )
+            }
+        },
+        singleLine = true,
+        enabled = enabled,
+        isError = isError,
+        supportingText = if (isError) {
+            { Text("Seleciona uma hora válida.") }
+        } else null,
+        shape = RoundedCornerShape(14.dp),
+        colors = sportFlowTextFieldColors(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled) { openPicker() }
+    )
+}
+
+@Composable
+private fun sportFlowTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = SportFlowGreen,
+    unfocusedBorderColor = Color(0xFFE2E8F0),
+    disabledBorderColor = Color(0xFFE2E8F0),
+    errorBorderColor = Color(0xFFDC2626),
+    focusedLabelColor = SportFlowGreen,
+    unfocusedLabelColor = Color(0xFF64748B),
+    cursorColor = SportFlowGreen,
+    focusedContainerColor = Color.White,
+    unfocusedContainerColor = Color.White,
+    disabledContainerColor = Color(0xFFF8FAFC)
+)
+
+private fun String.toInitials(): String {
+    return trim()
+        .split(Regex("\\s+"))
+        .filter { it.isNotBlank() }
+        .take(2)
+        .joinToString("") { part -> part.first().uppercaseChar().toString() }
+        .ifBlank { "?" }
 }
 
 @Composable
@@ -1926,12 +2192,33 @@ private fun MatchRegistrationSection(
                         value = minuteText,
                         onValueChange = { minuteText = it.filter { char -> char.isDigit() }.take(3) },
                         label = { Text("Minuto") },
+                        placeholder = { Text("Ex.: 12") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Schedule,
+                                contentDescription = null,
+                                tint = SportFlowGreen
+                            )
+                        },
+                        trailingIcon = {
+                            Text(
+                                text = "'",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFF64748B)
+                            )
+                        },
                         singleLine = true,
                         enabled = !uiState.isRegisteringGameEvent,
                         isError = isMinuteInvalid,
                         supportingText = if (isMinuteInvalid) {
                             { Text("Insere um minuto válido.") }
-                        } else null,
+                        } else {
+                            { Text("Minuto do acontecimento no jogo.") }
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = sportFlowTextFieldColors(),
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -1945,14 +2232,19 @@ private fun MatchRegistrationSection(
                         },
                         enabled = selectedGameId != null && selectedPlayerId != null && minute != null && !uiState.isRegisteringGameEvent,
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = SportFlowDarkBlue),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SportFlowGreen,
+                            contentColor = SportFlowDarkBlue,
+                            disabledContainerColor = Color(0xFFE2E8F0),
+                            disabledContentColor = Color(0xFF94A3B8)
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(48.dp)
                     ) {
                         if (uiState.isRegisteringGameEvent) {
                             CircularProgressIndicator(
-                                color = Color.White,
+                                color = SportFlowDarkBlue,
                                 strokeWidth = 2.dp,
                                 modifier = Modifier.size(16.dp)
                             )
@@ -1961,7 +2253,7 @@ private fun MatchRegistrationSection(
                                 text = "REGISTAR EVENTO",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Black,
-                                color = Color.White
+                                color = SportFlowDarkBlue
                             )
                         }
                     }
