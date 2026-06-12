@@ -30,7 +30,9 @@ import com.sportflow.app.R
 import com.sportflow.app.model.EligiblePlayer
 import com.sportflow.app.model.Enrollment
 import com.sportflow.app.model.Game
+import com.sportflow.app.model.GameEvent
 import com.sportflow.app.model.Team
+import com.sportflow.app.model.TopPerformer
 import com.sportflow.app.model.Tournament
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
@@ -66,6 +68,7 @@ fun OrganizadorEventsScreen(
             onRetryEnrollments = { viewModel.loadEnrollmentsForTournament(tournament.id) },
             onRetryTeams = { viewModel.loadTeamsForTournament(tournament.id) },
             onRetryGames = { viewModel.loadGamesForTournament(tournament.id) },
+            onRetryGameEvents = { viewModel.loadGameEventsForTournament(tournament.id) },
             onCreateTeam = { teamName -> viewModel.createTeam(tournament.id, teamName) },
             onCreateGame = { homeTeamId, awayTeamId, dateTime ->
                 viewModel.createGame(
@@ -86,6 +89,15 @@ fun OrganizadorEventsScreen(
                     tournamentId = tournament.id,
                     gameId = gameId,
                     result = result
+                )
+            },
+            onRegisterGameEvent = { gameId, playerId, eventType, minute ->
+                viewModel.registerGameEvent(
+                    tournamentId = tournament.id,
+                    gameId = gameId,
+                    playerId = playerId,
+                    eventType = eventType,
+                    minute = minute
                 )
             },
             onLoadEligiblePlayers = { viewModel.loadEligiblePlayersForTournament(tournament.id) },
@@ -221,10 +233,12 @@ fun OrganizadorEventDetailScreen(
     onRetryEnrollments: () -> Unit,
     onRetryTeams: () -> Unit,
     onRetryGames: () -> Unit,
+    onRetryGameEvents: () -> Unit,
     onCreateTeam: (String) -> Unit,
     onCreateGame: (Long, Long, String) -> Unit,
     onStartGame: (Long) -> Unit,
     onFinishGame: (Long, String) -> Unit,
+    onRegisterGameEvent: (Long, String, String, Int) -> Unit,
     onLoadEligiblePlayers: () -> Unit,
     onAssociatePlayer: (Long, String, Int?) -> Unit,
     onApproveEnrollment: (Long) -> Unit,
@@ -366,6 +380,14 @@ fun OrganizadorEventDetailScreen(
                 onCreateGameClick = { showCreateGameDialog = true },
                 onStartGame = onStartGame,
                 onFinishGameClick = { game -> gameToFinish = game }
+            )
+        }
+
+        item {
+            MatchRegistrationSection(
+                uiState = uiState,
+                onRetry = onRetryGameEvents,
+                onRegisterEvent = onRegisterGameEvent
             )
         }
 
@@ -1667,6 +1689,519 @@ private fun String.formatGameTime(): String {
 
     return time?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: "--:--"
 }
+
+@Composable
+private fun MatchRegistrationSection(
+    uiState: OrganizadorEventsUiState,
+    onRetry: () -> Unit,
+    onRegisterEvent: (Long, String, String, Int) -> Unit
+) {
+    val liveGames = remember(uiState.selectedTournamentGames) {
+        uiState.selectedTournamentGames.filter { game ->
+            game.status.equals("EM_DECORRER", ignoreCase = true)
+        }
+    }
+    var selectedGameId by remember { mutableStateOf<Long?>(null) }
+    var selectedEventType by remember { mutableStateOf("GOLO") }
+    var selectedPlayerId by remember { mutableStateOf<String?>(null) }
+    var minuteText by remember { mutableStateOf("") }
+
+    LaunchedEffect(liveGames.map { it.id }) {
+        val liveGameIds = liveGames.map { it.id }
+        if (selectedGameId !in liveGameIds) {
+            selectedGameId = liveGames.firstOrNull()?.id
+        }
+    }
+
+    val selectedGame = liveGames.firstOrNull { game -> game.id == selectedGameId }
+    val playersForSelectedGame = remember(selectedGame, uiState.selectedTournamentTeams) {
+        if (selectedGame == null) {
+            emptyList()
+        } else {
+            val gameTeamIds = setOfNotNull(selectedGame.homeTeamId, selectedGame.awayTeamId)
+            uiState.selectedTournamentTeams
+                .filter { team -> team.id in gameTeamIds }
+                .flatMap { team ->
+                    team.players.map { player ->
+                        MatchPlayerChoice(
+                            playerId = player.playerId,
+                            name = player.name,
+                            teamName = team.name,
+                            shirtNumber = player.shirtNumber
+                        )
+                    }
+                }
+                .sortedWith(compareBy<MatchPlayerChoice> { it.teamName.lowercase() }.thenBy { it.name.lowercase() })
+        }
+    }
+
+    LaunchedEffect(selectedGame?.id, playersForSelectedGame.map { it.playerId }) {
+        val playerIds = playersForSelectedGame.map { it.playerId }
+        if (selectedPlayerId !in playerIds) {
+            selectedPlayerId = playersForSelectedGame.firstOrNull()?.playerId
+        }
+    }
+
+    val minute = minuteText.trim().toIntOrNull()
+    val isMinuteInvalid = minuteText.isNotBlank() && minute == null
+    val selectedGameEvents = uiState.selectedTournamentGameEvents
+        .filter { event -> event.gameId == selectedGameId }
+        .sortedByDescending { event -> event.minute }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
+        border = BorderStroke(0.5.dp, Color(0xFFDCEBFF))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Registo de Partida",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SportFlowDarkBlue
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Regista eventos reais dos jogos em curso.",
+                        fontSize = 12.sp,
+                        color = Color(0xFF64748B)
+                    )
+                }
+
+                IconButton(onClick = onRetry) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Atualizar eventos",
+                        tint = SportFlowGreen
+                    )
+                }
+            }
+
+            when {
+                uiState.gameEventsErrorMessage != null -> {
+                    Text(
+                        text = uiState.gameEventsErrorMessage,
+                        fontSize = 12.sp,
+                        color = Color(0xFFDC2626),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFFFFF1F2))
+                            .padding(12.dp)
+                    )
+                }
+
+                uiState.isLoadingGameEvents -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = SportFlowGreen)
+                    }
+                }
+
+                liveGames.isEmpty() -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color.White)
+                            .border(0.5.dp, Color(0xFFE2E8F0), RoundedCornerShape(14.dp))
+                            .padding(18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Event,
+                            contentDescription = null,
+                            tint = SportFlowTextGray,
+                            modifier = Modifier.size(42.dp)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "Nenhum jogo em curso.",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SportFlowDarkBlue
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Inicia um jogo na Gestão de Calendário para registar eventos.",
+                            fontSize = 12.sp,
+                            color = Color(0xFF64748B),
+                            lineHeight = 16.sp
+                        )
+                    }
+                }
+
+                else -> {
+                    if (liveGames.size > 1) {
+                        SelectorBlock(
+                            title = "Jogo em curso",
+                            options = liveGames.map { game ->
+                                SelectorOption(
+                                    id = game.id.toString(),
+                                    label = "${game.homeTeamName ?: "Equipa casa"} vs ${game.awayTeamName ?: "Equipa fora"}",
+                                    subtitle = game.dateTime.formatGameTime()
+                                )
+                            },
+                            selectedId = selectedGameId?.toString(),
+                            enabled = !uiState.isRegisteringGameEvent,
+                            onSelect = { selectedGameId = it.toLongOrNull() }
+                        )
+                    } else if (selectedGame != null) {
+                        Text(
+                            text = "${selectedGame.homeTeamName ?: "Equipa casa"} vs ${selectedGame.awayTeamName ?: "Equipa fora"}",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Black,
+                            color = SportFlowDarkBlue,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.White)
+                                .padding(12.dp)
+                        )
+                    }
+
+                    SelectorBlock(
+                        title = "Tipo de evento",
+                        options = EVENT_TYPE_OPTIONS.map { eventType ->
+                            SelectorOption(
+                                id = eventType,
+                                label = eventType.toGameEventLabel(),
+                                subtitle = null
+                            )
+                        },
+                        selectedId = selectedEventType,
+                        enabled = !uiState.isRegisteringGameEvent,
+                        onSelect = { selectedEventType = it }
+                    )
+
+                    if (playersForSelectedGame.isEmpty()) {
+                        Text(
+                            text = "Este jogo ainda não tem jogadores associados às equipas.",
+                            fontSize = 12.sp,
+                            color = Color(0xFFDC2626),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFFFFF1F2))
+                                .padding(12.dp)
+                        )
+                    } else {
+                        SelectorBlock(
+                            title = "Jogador",
+                            options = playersForSelectedGame.map { player ->
+                                SelectorOption(
+                                    id = player.playerId,
+                                    label = player.name,
+                                    subtitle = buildString {
+                                        append(player.teamName)
+                                        player.shirtNumber?.let { append(" • #$it") }
+                                    }
+                                )
+                            },
+                            selectedId = selectedPlayerId,
+                            enabled = !uiState.isRegisteringGameEvent,
+                            onSelect = { selectedPlayerId = it }
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = minuteText,
+                        onValueChange = { minuteText = it.filter { char -> char.isDigit() }.take(3) },
+                        label = { Text("Minuto") },
+                        singleLine = true,
+                        enabled = !uiState.isRegisteringGameEvent,
+                        isError = isMinuteInvalid,
+                        supportingText = if (isMinuteInvalid) {
+                            { Text("Insere um minuto válido.") }
+                        } else null,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Button(
+                        onClick = {
+                            val gameId = selectedGameId ?: return@Button
+                            val playerId = selectedPlayerId ?: return@Button
+                            val parsedMinute = minute ?: return@Button
+                            onRegisterEvent(gameId, playerId, selectedEventType, parsedMinute)
+                            minuteText = ""
+                        },
+                        enabled = selectedGameId != null && selectedPlayerId != null && minute != null && !uiState.isRegisteringGameEvent,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SportFlowDarkBlue),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        if (uiState.isRegisteringGameEvent) {
+                            CircularProgressIndicator(
+                                color = Color.White,
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        } else {
+                            Text(
+                                text = "REGISTAR EVENTO",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    MatchEventsFeed(events = selectedGameEvents)
+                    TopPerformanceCard(topPerformers = uiState.topPerformers)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MatchEventsFeed(events: List<GameEvent>) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(
+            text = "EVENTOS REGISTADOS",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Black,
+            color = Color(0xFF94A3B8),
+            letterSpacing = 0.5.sp
+        )
+
+        if (events.isEmpty()) {
+            Text(
+                text = "Ainda não existem eventos neste jogo.",
+                fontSize = 12.sp,
+                color = Color(0xFF64748B)
+            )
+        } else {
+            events.forEach { event ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${event.minute}'",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Black,
+                        color = SportFlowGreen,
+                        modifier = Modifier.width(42.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = event.eventType.toGameEventLabel(),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Black,
+                            color = SportFlowDarkBlue
+                        )
+                        Text(
+                            text = buildString {
+                                append(event.playerName ?: "Jogador sem nome")
+                                event.teamName?.let { append(" • $it") }
+                            },
+                            fontSize = 11.sp,
+                            color = Color(0xFF64748B)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TopPerformanceCard(topPerformers: List<TopPerformer>) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "TOP PERFORMANCE",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Black,
+                color = Color(0xFF64748B),
+                letterSpacing = 0.5.sp
+            )
+            Icon(
+                imageVector = Icons.Default.Star,
+                contentDescription = null,
+                tint = SportFlowGreen,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+
+        if (topPerformers.isEmpty()) {
+            Text(
+                text = "Sem golos registados ainda.",
+                fontSize = 12.sp,
+                color = Color(0xFF64748B)
+            )
+        } else {
+            val maxGoals = topPerformers.maxOf { it.goals }.coerceAtLeast(1)
+            topPerformers.take(3).forEach { performer ->
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = performer.playerName,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SportFlowDarkBlue
+                        )
+                        Text(
+                            text = "${performer.goals} Golos",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFF047857)
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFE2E8F0))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(performer.goals.toFloat() / maxGoals.toFloat())
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(SportFlowGreen)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelectorBlock(
+    title: String,
+    options: List<SelectorOption>,
+    selectedId: String?,
+    enabled: Boolean,
+    onSelect: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = title,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF64748B)
+        )
+        Column(
+            modifier = Modifier.heightIn(max = 210.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            options.forEach { option ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable(enabled = enabled) { onSelect(option.id) }
+                        .background(if (selectedId == option.id) Color.White else Color(0xFFF8FAFC))
+                        .border(
+                            width = 0.5.dp,
+                            color = if (selectedId == option.id) SportFlowGreen else Color(0xFFE2E8F0),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                        .padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = selectedId == option.id,
+                        onClick = { onSelect(option.id) },
+                        enabled = enabled
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = option.label,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SportFlowDarkBlue
+                        )
+                        option.subtitle?.takeIf { it.isNotBlank() }?.let { subtitle ->
+                            Text(
+                                text = subtitle,
+                                fontSize = 10.sp,
+                                color = Color(0xFF64748B)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private data class MatchPlayerChoice(
+    val playerId: String,
+    val name: String,
+    val teamName: String,
+    val shirtNumber: Int?
+)
+
+private data class SelectorOption(
+    val id: String,
+    val label: String,
+    val subtitle: String?
+)
+
+private val EVENT_TYPE_OPTIONS = listOf(
+    "GOLO",
+    "FALTA",
+    "CARTAO_AMARELO",
+    "CARTAO_VERMELHO"
+)
+
+private fun String.toGameEventLabel(): String {
+    return when (uppercase(Locale.ROOT)) {
+        "GOLO" -> "Golo"
+        "FALTA" -> "Falta"
+        "CARTAO_AMARELO" -> "Cartão amarelo"
+        "CARTAO_VERMELHO" -> "Cartão vermelho"
+        else -> this
+    }
+}
+
 
 @Composable
 private fun EnrollmentsSection(

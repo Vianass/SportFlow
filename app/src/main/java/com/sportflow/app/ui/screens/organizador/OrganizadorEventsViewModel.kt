@@ -3,13 +3,16 @@ package com.sportflow.app.ui.screens.organizador
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sportflow.app.data.repository.EnrollmentsRepository
+import com.sportflow.app.data.repository.GameEventsRepository
 import com.sportflow.app.data.repository.GamesRepository
 import com.sportflow.app.data.repository.TeamsRepository
 import com.sportflow.app.data.repository.TournamentsRepository
 import com.sportflow.app.model.Enrollment
 import com.sportflow.app.model.Game
+import com.sportflow.app.model.GameEvent
 import com.sportflow.app.model.EligiblePlayer
 import com.sportflow.app.model.Team
+import com.sportflow.app.model.TopPerformer
 import com.sportflow.app.model.Tournament
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,6 +37,11 @@ data class OrganizadorEventsUiState(
     val gamesErrorMessage: String? = null,
     val isCreatingGame: Boolean = false,
     val updatingGameId: Long? = null,
+    val isLoadingGameEvents: Boolean = false,
+    val selectedTournamentGameEvents: List<GameEvent> = emptyList(),
+    val topPerformers: List<TopPerformer> = emptyList(),
+    val gameEventsErrorMessage: String? = null,
+    val isRegisteringGameEvent: Boolean = false,
     val isLoadingEligiblePlayers: Boolean = false,
     val eligiblePlayers: List<EligiblePlayer> = emptyList(),
     val eligiblePlayersErrorMessage: String? = null,
@@ -45,7 +53,8 @@ class OrganizadorEventsViewModel(
     private val tournamentsRepository: TournamentsRepository = TournamentsRepository(),
     private val enrollmentsRepository: EnrollmentsRepository = EnrollmentsRepository(),
     private val teamsRepository: TeamsRepository = TeamsRepository(),
-    private val gamesRepository: GamesRepository = GamesRepository()
+    private val gamesRepository: GamesRepository = GamesRepository(),
+    private val gameEventsRepository: GameEventsRepository = GameEventsRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OrganizadorEventsUiState(isLoading = true))
@@ -89,6 +98,7 @@ class OrganizadorEventsViewModel(
         loadEnrollmentsForTournament(tournamentId)
         loadTeamsForTournament(tournamentId)
         loadGamesForTournament(tournamentId)
+        loadGameEventsForTournament(tournamentId)
         loadEligiblePlayersForTournament(tournamentId)
     }
 
@@ -185,6 +195,39 @@ class OrganizadorEventsViewModel(
         }
     }
 
+    fun loadGameEventsForTournament(tournamentId: Long) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isLoadingGameEvents = true,
+                    gameEventsErrorMessage = null
+                )
+            }
+
+            runCatching {
+                val events = gameEventsRepository.getEventsForTournament(tournamentId)
+                val topPerformers = gameEventsRepository.getTopPerformersForTournament(tournamentId)
+                events to topPerformers
+            }.onSuccess { (events, topPerformers) ->
+                _uiState.update {
+                    it.copy(
+                        isLoadingGameEvents = false,
+                        selectedTournamentGameEvents = events,
+                        topPerformers = topPerformers,
+                        gameEventsErrorMessage = null
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isLoadingGameEvents = false,
+                        gameEventsErrorMessage = throwable.message ?: "Erro ao carregar eventos da partida."
+                    )
+                }
+            }
+        }
+    }
+
     fun createGame(
         tournamentId: Long,
         homeTeamId: Long,
@@ -215,6 +258,7 @@ class OrganizadorEventsViewModel(
                     )
                 }
                 loadGamesForTournament(tournamentId)
+                loadGameEventsForTournament(tournamentId)
             }.onFailure { throwable ->
                 _uiState.update {
                     it.copy(
@@ -249,6 +293,50 @@ class OrganizadorEventsViewModel(
                 gameId = gameId,
                 result = result
             )
+        }
+    }
+
+
+    fun registerGameEvent(
+        tournamentId: Long,
+        gameId: Long,
+        playerId: String,
+        eventType: String,
+        minute: Int
+    ) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isRegisteringGameEvent = true,
+                    gameEventsErrorMessage = null,
+                    actionMessage = null
+                )
+            }
+
+            runCatching {
+                gameEventsRepository.registerGameEvent(
+                    tournamentId = tournamentId,
+                    gameId = gameId,
+                    playerId = playerId,
+                    eventType = eventType,
+                    minute = minute
+                )
+            }.onSuccess {
+                _uiState.update {
+                    it.copy(
+                        isRegisteringGameEvent = false,
+                        actionMessage = "Evento registado com sucesso."
+                    )
+                }
+                loadGameEventsForTournament(tournamentId)
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isRegisteringGameEvent = false,
+                        gameEventsErrorMessage = throwable.message ?: "Erro ao registar evento."
+                    )
+                }
+            }
         }
     }
 
@@ -388,10 +476,13 @@ class OrganizadorEventsViewModel(
                 selectedTournamentEnrollments = emptyList(),
                 selectedTournamentTeams = emptyList(),
                 selectedTournamentGames = emptyList(),
+                selectedTournamentGameEvents = emptyList(),
+                topPerformers = emptyList(),
                 eligiblePlayers = emptyList(),
                 enrollmentsErrorMessage = null,
                 teamsErrorMessage = null,
                 gamesErrorMessage = null,
+                gameEventsErrorMessage = null,
                 eligiblePlayersErrorMessage = null,
                 actionMessage = null
             )
@@ -423,6 +514,7 @@ class OrganizadorEventsViewModel(
                     )
                 }
                 loadGamesForTournament(tournamentId)
+                loadGameEventsForTournament(tournamentId)
             }.onFailure { throwable ->
                 _uiState.update {
                     it.copy(
