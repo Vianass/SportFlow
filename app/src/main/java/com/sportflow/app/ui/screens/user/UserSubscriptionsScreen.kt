@@ -64,6 +64,10 @@ fun UserSubscriptionsScreen(
 
     val uiState by viewModel.uiState.collectAsState()
 
+    LaunchedEffect(Unit) {
+        viewModel.loadEnrollments()
+    }
+
     val subscriptions = remember(uiState.enrollments) {
         uiState.enrollments.map { it.toUserSubscription() }
     }
@@ -148,12 +152,25 @@ fun UserSubscriptionsScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp, vertical = 20.dp)
             ) {
-                Text(
-                    text = "Minhas Inscrições",
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Black,
-                    color = SportFlowDarkBlue
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Minhas Inscrições",
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Black,
+                        color = SportFlowDarkBlue,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = viewModel::loadEnrollments) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Atualizar inscrições",
+                            tint = SportFlowDarkBlue
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Gere as tuas participações nos próximos torneios de elite.",

@@ -25,10 +25,6 @@ class UserSubscriptionsViewModel(
     private val _uiState = MutableStateFlow(UserSubscriptionsUiState(isLoading = true))
     val uiState: StateFlow<UserSubscriptionsUiState> = _uiState.asStateFlow()
 
-    init {
-        loadEnrollments()
-    }
-
     fun loadEnrollments() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null, actionMessage = null) }

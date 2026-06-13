@@ -251,6 +251,139 @@ fun UserEventsScreen(
             }
         }
 
+        if (uiState.isOfflineMode) {
+            item {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFFFFF7ED),
+                    border = BorderStroke(1.dp, Color(0xFFFED7AA))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CloudOff,
+                            contentDescription = null,
+                            tint = Color(0xFFC2410C),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = uiState.offlineMessage
+                                ?: "Modo offline: a mostrar dados guardados localmente.",
+                            color = Color(0xFF9A3412),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = viewModel::loadTournaments) {
+                            Text(
+                                text = "ATUALIZAR",
+                                color = Color(0xFFC2410C),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (uiState.pendingCount > 0) {
+            item {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFFEFF6FF),
+                    border = BorderStroke(1.dp, Color(0xFFBFDBFE))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CloudUpload,
+                            contentDescription = null,
+                            tint = Color(0xFF2563EB),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (uiState.pendingCount == 1) {
+                                    "1 inscrição pendente"
+                                } else {
+                                    "${uiState.pendingCount} inscrições pendentes"
+                                },
+                                color = Color(0xFF1E3A8A),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (!uiState.isNetworkAvailable) {
+                                Text(
+                                    text = "A aguardar ligação à internet",
+                                    color = Color(0xFF64748B),
+                                    fontSize = 9.sp
+                                )
+                            }
+                        }
+
+                        if (uiState.isSyncing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = Color(0xFF2563EB)
+                            )
+                        } else if (uiState.isNetworkAvailable) {
+                            TextButton(onClick = viewModel::syncNow) {
+                                Text(
+                                    text = "SINCRONIZAR AGORA",
+                                    color = Color(0xFF2563EB),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (uiState.syncMessage != null) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = uiState.syncMessage ?: "",
+                        modifier = Modifier.weight(1f),
+                        color = Color(0xFF475569),
+                        fontSize = 10.sp
+                    )
+                    IconButton(
+                        onClick = viewModel::clearSyncMessage,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Fechar mensagem",
+                            tint = Color(0xFF64748B),
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+                }
+            }
+        }
+
         // Search and Filter Bar
         item {
             Column(
@@ -459,6 +592,8 @@ fun UserEventsScreen(
             items(filteredTournaments) { tournament ->
                 TournamentEventCard(
                     tournament = tournament,
+                    hasPendingOfflineEnrollment =
+                        tournament.id in uiState.pendingOfflineEnrollments,
                     onEnrollClick = { selectedTournament = tournament }
                 )
             }
@@ -469,6 +604,7 @@ fun UserEventsScreen(
 @Composable
 fun TournamentEventCard(
     tournament: TournamentEvent,
+    hasPendingOfflineEnrollment: Boolean = false,
     onEnrollClick: () -> Unit = {}
 ) {
     Card(
@@ -528,7 +664,32 @@ fun TournamentEventCard(
                     }
                 }
 
-                if (tournament.isSoldOut) {
+                if (hasPendingOfflineEnrollment) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(12.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFFFF7ED))
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.CloudUpload,
+                                contentDescription = null,
+                                tint = Color(0xFFC2410C),
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(7.dp))
+                            Text(
+                                text = "PENDENTE DE SINCRONIZAÇÃO",
+                                color = Color(0xFF9A3412),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
+                } else if (tournament.isSoldOut) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.Center)
@@ -605,7 +766,34 @@ fun TournamentEventCard(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                if (tournament.isSoldOut) {
+                if (hasPendingOfflineEnrollment) {
+                    Button(
+                        onClick = {},
+                        enabled = false,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            disabledContainerColor = Color(0xFFFFF7ED),
+                            disabledContentColor = Color(0xFFC2410C)
+                        )
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.CloudUpload,
+                                contentDescription = null,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(7.dp))
+                            Text(
+                                text = "PENDENTE DE SINCRONIZAÇÃO",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
+                } else if (tournament.isSoldOut) {
                     Button(
                         onClick = { /* Disabled */ },
                         enabled = false,
