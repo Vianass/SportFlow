@@ -35,7 +35,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sportflow.app.R
 import com.sportflow.app.model.EligiblePlayer
-import com.sportflow.app.model.Enrollment
 import com.sportflow.app.model.Game
 import com.sportflow.app.model.GameEvent
 import com.sportflow.app.model.Team
@@ -44,6 +43,7 @@ import com.sportflow.app.model.Tournament
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
 import com.sportflow.app.ui.theme.SportFlowTextGray
+import com.sportflow.app.ui.components.EnrollmentManagementSection
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.OffsetDateTime
@@ -400,11 +400,16 @@ fun OrganizadorEventDetailScreen(
         }
 
         item {
-            EnrollmentsSection(
-                uiState = uiState,
+            EnrollmentManagementSection(
+                enrollments = uiState.selectedTournamentEnrollments,
+                isLoading = uiState.isLoadingEnrollments,
+                errorMessage = uiState.enrollmentsErrorMessage,
+                successMessage = uiState.actionMessage,
+                updatingEnrollmentId = uiState.updatingEnrollmentId,
                 onRetry = onRetryEnrollments,
                 onApproveEnrollment = onApproveEnrollment,
-                onRejectEnrollment = onRejectEnrollment
+                onRejectEnrollment = onRejectEnrollment,
+                modifier = Modifier.padding(horizontal = 24.dp)
             )
         }
     }
@@ -2496,239 +2501,6 @@ private fun String.toGameEventLabel(): String {
 
 
 @Composable
-private fun EnrollmentsSection(
-    uiState: OrganizadorEventsUiState,
-    onRetry: () -> Unit,
-    onApproveEnrollment: (Long) -> Unit,
-    onRejectEnrollment: (Long) -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(0.5.dp, Color(0xFFE2E8F0))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text(
-                        text = "INSCRIÇÕES",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF94A3B8),
-                        letterSpacing = 0.5.sp
-                    )
-                    Text(
-                        text = "Pedidos reais do Supabase",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Black,
-                        color = SportFlowDarkBlue
-                    )
-                }
-
-                IconButton(onClick = onRetry) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = "Atualizar inscrições",
-                        tint = SportFlowGreen
-                    )
-                }
-            }
-
-            if (uiState.actionMessage != null) {
-                Text(
-                    text = uiState.actionMessage,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF047857),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFFD1FAE5))
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
-                )
-            }
-
-            when {
-                uiState.isLoadingEnrollments -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 28.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = SportFlowGreen)
-                    }
-                }
-
-                uiState.enrollmentsErrorMessage != null -> {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = uiState.enrollmentsErrorMessage,
-                            fontSize = 12.sp,
-                            color = Color(0xFFDC2626),
-                            lineHeight = 16.sp
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        OutlinedButton(onClick = onRetry) {
-                            Text("Tentar novamente")
-                        }
-                    }
-                }
-
-                uiState.selectedTournamentEnrollments.isEmpty() -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.HowToReg,
-                            contentDescription = null,
-                            tint = SportFlowTextGray,
-                            modifier = Modifier.size(42.dp)
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = "Ainda não existem inscrições neste torneio.",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = SportFlowDarkBlue
-                        )
-                    }
-                }
-
-                else -> {
-                    uiState.selectedTournamentEnrollments.forEach { enrollment ->
-                        EnrollmentManagementCard(
-                            enrollment = enrollment,
-                            isUpdating = uiState.updatingEnrollmentId == enrollment.id,
-                            onApprove = { onApproveEnrollment(enrollment.id) },
-                            onReject = { onRejectEnrollment(enrollment.id) }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EnrollmentManagementCard(
-    enrollment: Enrollment,
-    isUpdating: Boolean,
-    onApprove: () -> Unit,
-    onReject: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFFF8FAFC))
-            .border(0.5.dp, Color(0xFFE2E8F0), RoundedCornerShape(14.dp))
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = enrollment.userName ?: "Atleta sem nome",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Black,
-                    color = SportFlowDarkBlue
-                )
-                Text(
-                    text = enrollment.userEmail ?: enrollment.userId,
-                    fontSize = 11.sp,
-                    color = Color(0xFF64748B),
-                    lineHeight = 15.sp
-                )
-            }
-
-            EnrollmentStatusBadge(status = enrollment.status)
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            DetailChip(
-                icon = Icons.Default.Payments,
-                label = enrollment.paymentStatus
-            )
-            DetailChip(
-                icon = Icons.Default.Schedule,
-                label = enrollment.registeredAt?.formatShortDate() ?: "Data indisponível"
-            )
-        }
-
-        if (enrollment.status.equals("PENDENTE", ignoreCase = true)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onReject,
-                    enabled = !isUpdating,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, Color(0xFFFCA5A5))
-                ) {
-                    Text(
-                        text = "Rejeitar",
-                        color = Color(0xFFB91C1C),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
-                    )
-                }
-
-                Button(
-                    onClick = onApprove,
-                    enabled = !isUpdating,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = SportFlowGreen)
-                ) {
-                    if (isUpdating) {
-                        CircularProgressIndicator(
-                            color = SportFlowDarkBlue,
-                            strokeWidth = 2.dp,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    } else {
-                        Text(
-                            text = "Aprovar",
-                            color = SportFlowDarkBlue,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun ErrorCard(
     message: String,
     onRetry: () -> Unit
@@ -2826,55 +2598,6 @@ private fun EmptyState() {
             text = "Cria um evento para ele aparecer aqui.",
             fontSize = 13.sp,
             color = Color(0xFF64748B)
-        )
-    }
-}
-
-@Composable
-private fun EnrollmentStatusBadge(status: String) {
-    val (label, bg, tc) = when (status.uppercase(Locale.ROOT)) {
-        "APROVADA" -> Triple("APROVADA", Color(0xFFD1FAE5), Color(0xFF047857))
-        "REJEITADA" -> Triple("REJEITADA", Color(0xFFFEE2E2), Color(0xFFB91C1C))
-        else -> Triple("PENDENTE", Color(0xFFDBEAFE), Color(0xFF1D4ED8))
-    }
-
-    Text(
-        text = label,
-        fontSize = 9.sp,
-        fontWeight = FontWeight.Black,
-        color = tc,
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(bg)
-            .padding(horizontal = 10.dp, vertical = 5.dp)
-    )
-}
-
-@Composable
-private fun DetailChip(
-    icon: ImageVector,
-    label: String
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(Color.White)
-            .border(0.5.dp, Color(0xFFE2E8F0), RoundedCornerShape(10.dp))
-            .padding(horizontal = 10.dp, vertical = 7.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = Color(0xFF64748B),
-            modifier = Modifier.size(14.dp)
-        )
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(
-            text = label,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF475569)
         )
     }
 }

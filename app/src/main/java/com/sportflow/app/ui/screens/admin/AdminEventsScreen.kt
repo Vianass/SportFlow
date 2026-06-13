@@ -31,7 +31,9 @@ import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
 import com.sportflow.app.ui.theme.SportFlowTextGray
 import com.sportflow.app.ui.viewmodel.AdminViewModel
+import com.sportflow.app.model.Enrollment
 import com.sportflow.app.model.Tournament
+import com.sportflow.app.ui.components.EnrollmentManagementSection
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -151,6 +153,15 @@ fun AdminEventsScreen(
         }
     }
 
+    LaunchedEffect(selectedTournament?.id, state.currentAdminId) {
+        val tournament = selectedTournament ?: return@LaunchedEffect
+        if (tournament.organizerId == state.currentAdminId) {
+            viewModel.loadEnrollmentsForTournament(tournament.id)
+        } else {
+            viewModel.clearEnrollmentSelection()
+        }
+    }
+
     selectedTournament?.let { tournament ->
         AdminTournamentDetailScreen(
             tournament = tournament,
@@ -158,9 +169,16 @@ fun AdminEventsScreen(
             isSubmitting = state.operationInProgress == "updateTournament:${tournament.id}",
             errorMessage = state.errorMessage,
             successMessage = state.successMessage,
+            canManageEnrollments = tournament.organizerId == state.currentAdminId,
+            enrollments = state.selectedTournamentEnrollments,
+            isLoadingEnrollments = state.isLoadingEnrollments,
+            enrollmentsErrorMessage = state.enrollmentsErrorMessage,
+            enrollmentSuccessMessage = state.enrollmentSuccessMessage,
+            updatingEnrollmentId = state.updatingEnrollmentId,
             onBack = {
                 isEditingTournament = false
                 selectedTournament = null
+                viewModel.clearEnrollmentSelection()
                 viewModel.clearError()
                 viewModel.clearSuccess()
             },
@@ -174,6 +192,9 @@ fun AdminEventsScreen(
                 viewModel.clearError()
                 viewModel.clearSuccess()
             },
+            onRetryEnrollments = { viewModel.loadEnrollmentsForTournament(tournament.id) },
+            onApproveEnrollment = viewModel::approveEnrollment,
+            onRejectEnrollment = viewModel::rejectEnrollment,
             onSubmit = { name, sport, category, date, location, capacity, price, status ->
                 viewModel.updateTournament(
                     tournamentId = tournament.id,
@@ -608,10 +629,19 @@ private fun AdminTournamentDetailScreen(
     isSubmitting: Boolean,
     errorMessage: String?,
     successMessage: String?,
+    canManageEnrollments: Boolean,
+    enrollments: List<Enrollment>,
+    isLoadingEnrollments: Boolean,
+    enrollmentsErrorMessage: String?,
+    enrollmentSuccessMessage: String?,
+    updatingEnrollmentId: Long?,
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onCancelEdit: () -> Unit,
     onClearMessages: () -> Unit,
+    onRetryEnrollments: () -> Unit,
+    onApproveEnrollment: (Long) -> Unit,
+    onRejectEnrollment: (Long) -> Unit,
     onSubmit: (String, String, String, String, String, String, String, String) -> Unit
 ) {
     LazyColumn(
@@ -703,6 +733,21 @@ private fun AdminTournamentDetailScreen(
                     Icon(Icons.Default.Edit, contentDescription = null, tint = SportFlowDarkBlue)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("EDITAR TORNEIO", color = SportFlowDarkBlue, fontWeight = FontWeight.Black)
+                }
+            }
+
+            if (canManageEnrollments) {
+                item {
+                    EnrollmentManagementSection(
+                        enrollments = enrollments,
+                        isLoading = isLoadingEnrollments,
+                        errorMessage = enrollmentsErrorMessage,
+                        successMessage = enrollmentSuccessMessage,
+                        updatingEnrollmentId = updatingEnrollmentId,
+                        onRetry = onRetryEnrollments,
+                        onApproveEnrollment = onApproveEnrollment,
+                        onRejectEnrollment = onRejectEnrollment
+                    )
                 }
             }
         }

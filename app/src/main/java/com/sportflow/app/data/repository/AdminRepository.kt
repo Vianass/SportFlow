@@ -10,6 +10,7 @@ import com.sportflow.app.model.AdminPlatformStats
 import com.sportflow.app.model.AdminUserActionResult
 import com.sportflow.app.model.AdminUserFilter
 import com.sportflow.app.model.CreateTournamentRequest
+import com.sportflow.app.model.Enrollment
 import com.sportflow.app.model.ProfileStatus
 import com.sportflow.app.model.Tournament
 import com.sportflow.app.model.UserRole
@@ -22,7 +23,8 @@ import kotlinx.serialization.json.put
 
 class AdminRepository(
     private val profilesRepository: ProfilesRepository = ProfilesRepository(),
-    private val tournamentsRepository: TournamentsRepository = TournamentsRepository()
+    private val tournamentsRepository: TournamentsRepository = TournamentsRepository(),
+    private val enrollmentsRepository: EnrollmentsRepository = EnrollmentsRepository()
 ) {
     suspend fun getPendingOrganizers(): List<ProfileDto> {
         requireAdmin()
@@ -115,6 +117,20 @@ class AdminRepository(
         )
     }
 
+    suspend fun getEnrollmentsForTournament(tournamentId: Long): List<Enrollment> {
+        requireAdminOwnedTournament(tournamentId)
+        return enrollmentsRepository.getEnrollmentsForTournament(tournamentId)
+    }
+
+    suspend fun updateEnrollmentStatus(
+        tournamentId: Long,
+        enrollmentId: Long,
+        status: String
+    ) {
+        requireAdminOwnedTournament(tournamentId)
+        enrollmentsRepository.updateEnrollmentStatus(enrollmentId, status)
+    }
+
     suspend fun getDashboardData(): AdminDashboardData {
         requireAdmin()
         val profiles = profilesRepository.getProfiles()
@@ -171,6 +187,17 @@ class AdminRepository(
 
     private suspend fun getAllGamesInternal(): List<GameDto> =
         SupabaseProvider.client.from("jogos").select().decodeList<GameDto>()
+
+    private suspend fun requireAdminOwnedTournament(tournamentId: Long) {
+        val admin = requireAdmin()
+        val tournament = tournamentsRepository.getTournaments()
+            .firstOrNull { it.id == tournamentId }
+            ?: error("Torneio não encontrado.")
+
+        require(tournament.organizerId == admin.id) {
+            "Só podes gerir inscrições de torneios criados pela tua conta de administrador."
+        }
+    }
 
     private suspend fun getAllEnrollmentsInternal(): List<EnrollmentDto> =
         SupabaseProvider.client.from("inscricoes").select().decodeList<EnrollmentDto>()

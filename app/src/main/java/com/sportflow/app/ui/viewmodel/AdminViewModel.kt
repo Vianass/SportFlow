@@ -8,6 +8,7 @@ import com.sportflow.app.data.repository.AdminRepository
 import com.sportflow.app.model.AdminPlatformStats
 import com.sportflow.app.model.AdminUserFilter
 import com.sportflow.app.model.CreateTournamentRequest
+import com.sportflow.app.model.Enrollment
 import com.sportflow.app.model.ProfileStatus
 import com.sportflow.app.model.Tournament
 import com.sportflow.app.model.UserRole
@@ -32,6 +33,13 @@ data class AdminUiState(
     val games: List<GameDto> = emptyList(),
     val teamNames: Map<Long, String> = emptyMap(),
     val stats: AdminPlatformStats = AdminPlatformStats(),
+    val currentAdminId: String? = null,
+    val selectedTournamentId: Long? = null,
+    val selectedTournamentEnrollments: List<Enrollment> = emptyList(),
+    val isLoadingEnrollments: Boolean = false,
+    val enrollmentsErrorMessage: String? = null,
+    val enrollmentSuccessMessage: String? = null,
+    val updatingEnrollmentId: Long? = null,
     val operationInProgress: String? = null,
     val successMessage: String? = null,
     val isAuthorized: Boolean = false,
@@ -65,7 +73,7 @@ class AdminViewModel(
         viewModelScope.launch {
             startLoading()
             try {
-                repository.requireAdmin()
+                val admin = repository.requireAdmin()
                 val (dashboard, users) = coroutineScope {
                     val dashboardRequest = async { repository.getDashboardData() }
                     val usersRequest = async { repository.getAllUsers() }
@@ -82,6 +90,7 @@ class AdminViewModel(
                         games = dashboard.games,
                         teamNames = dashboard.teamNames,
                         stats = dashboard.stats,
+                        currentAdminId = admin.id,
                         isAuthorized = true,
                         accessChecked = true
                     )
@@ -150,6 +159,69 @@ class AdminViewModel(
             } catch (exception: Exception) {
                 failLoading(exception)
             }
+        }
+    }
+
+    fun loadEnrollmentsForTournament(tournamentId: Long) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    selectedTournamentId = tournamentId,
+                    selectedTournamentEnrollments = emptyList(),
+                    isLoadingEnrollments = true,
+                    enrollmentsErrorMessage = null,
+                    enrollmentSuccessMessage = null
+                )
+            }
+
+            try {
+                val enrollments = repository.getEnrollmentsForTournament(tournamentId)
+                _uiState.update {
+                    if (it.selectedTournamentId == tournamentId) {
+                        it.copy(
+                            selectedTournamentEnrollments = enrollments.sortedByDescending { enrollment ->
+                                enrollment.registeredAt ?: ""
+                            },
+                            isLoadingEnrollments = false,
+                            enrollmentsErrorMessage = null
+                        )
+                    } else {
+                        it
+                    }
+                }
+            } catch (exception: Exception) {
+                _uiState.update {
+                    if (it.selectedTournamentId == tournamentId) {
+                        it.copy(
+                            isLoadingEnrollments = false,
+                            enrollmentsErrorMessage = exception.message ?: "Erro ao carregar inscrições."
+                        )
+                    } else {
+                        it
+                    }
+                }
+            }
+        }
+    }
+
+    fun approveEnrollment(enrollmentId: Long) {
+        updateEnrollmentStatus(enrollmentId, "APROVADA", "Inscrição aprovada com sucesso.")
+    }
+
+    fun rejectEnrollment(enrollmentId: Long) {
+        updateEnrollmentStatus(enrollmentId, "REJEITADA", "Inscrição rejeitada com sucesso.")
+    }
+
+    fun clearEnrollmentSelection() {
+        _uiState.update {
+            it.copy(
+                selectedTournamentId = null,
+                selectedTournamentEnrollments = emptyList(),
+                isLoadingEnrollments = false,
+                enrollmentsErrorMessage = null,
+                enrollmentSuccessMessage = null,
+                updatingEnrollmentId = null
+            )
         }
     }
 
@@ -332,6 +404,58 @@ class AdminViewModel(
 
     fun clearSuccess() {
         _uiState.update { it.copy(successMessage = null) }
+    }
+
+    private fun updateEnrollmentStatus(
+        enrollmentId: Long,
+        status: String,
+        successMessage: String
+    ) {
+        val tournamentId = _uiState.value.selectedTournamentId ?: return
+        if (_uiState.value.updatingEnrollmentId != null) return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    updatingEnrollmentId = enrollmentId,
+                    enrollmentsErrorMessage = null,
+                    enrollmentSuccessMessage = null
+                )
+            }
+
+            try {
+                repository.updateEnrollmentStatus(tournamentId, enrollmentId, status)
+                val (enrollments, dashboard) = coroutineScope {
+                    val enrollmentsRequest = async {
+                        repository.getEnrollmentsForTournament(tournamentId)
+                    }
+                    val dashboardRequest = async { repository.getDashboardData() }
+                    enrollmentsRequest.await() to dashboardRequest.await()
+                }
+
+                _uiState.update {
+                    it.copy(
+                        updatingEnrollmentId = null,
+                        selectedTournamentEnrollments = enrollments.sortedByDescending { enrollment ->
+                            enrollment.registeredAt ?: ""
+                        },
+                        tournaments = dashboard.tournaments,
+                        games = dashboard.games,
+                        teamNames = dashboard.teamNames,
+                        pendingOrganizers = dashboard.pendingOrganizers,
+                        stats = dashboard.stats,
+                        enrollmentSuccessMessage = successMessage
+                    )
+                }
+            } catch (exception: Exception) {
+                _uiState.update {
+                    it.copy(
+                        updatingEnrollmentId = null,
+                        enrollmentsErrorMessage = exception.message ?: "Erro ao atualizar inscrição."
+                    )
+                }
+            }
+        }
     }
 
     private fun runUserOperation(
