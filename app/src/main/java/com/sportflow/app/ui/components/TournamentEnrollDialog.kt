@@ -23,6 +23,7 @@ import com.sportflow.app.ui.screens.user.TournamentEvent
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
 import java.time.LocalDate
+import java.util.Locale
 
 
 @Composable
@@ -72,7 +73,7 @@ fun TournamentEnrollDialog(
                     fontWeight = FontWeight.Black,
                     color = SportFlowDarkBlue
                 )
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
@@ -102,14 +103,16 @@ fun TournamentEnrollDialog(
                     Spacer(modifier = Modifier.height(12.dp))
                     EnrollDetailRow(icon = Icons.Default.Place, label = "Local", value = tournament.location)
                     Spacer(modifier = Modifier.height(12.dp))
-                    
-                    // Extra details specific for enrollment
-                    val price = if (tournament.sportType == "BASKETBALL") "45,00€ / equipa" else "25,00€ / equipa"
-                    EnrollDetailRow(icon = Icons.Default.Payments, label = "Valor da Inscrição", value = price)
+
+                    EnrollDetailRow(
+                        icon = Icons.Default.Payments,
+                        label = "Valor da Inscrição",
+                        value = formatEnrollmentPrice(tournament.price)
+                    )
                 }
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -121,7 +124,9 @@ fun TournamentEnrollDialog(
                     Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFD97706), modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Restam apenas ${tournament.vacanciesLeft} vagas! Inscreve-te rápido.",
+                        text = tournament.vacanciesLeft?.let {
+                            "Restam apenas $it vagas! Inscreve-te rápido."
+                        } ?: "A disponibilidade será confirmada no momento da inscrição.",
                         fontSize = 11.sp,
                         color = Color(0xFFB45309),
                         fontWeight = FontWeight.Bold
@@ -170,6 +175,14 @@ fun TournamentEnrollDialog(
     }
 }
 
+private fun formatEnrollmentPrice(price: Double?): String {
+    return when {
+        price == null -> "Valor a definir"
+        price <= 0.0 -> "Gratuito"
+        else -> "%.2f€ / equipa".format(Locale.forLanguageTag("pt-PT"), price)
+    }
+}
+
 @Composable
 private fun EnrollDetailRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
     Row(
@@ -214,6 +227,7 @@ private fun EnrollDetailRow(icon: androidx.compose.ui.graphics.vector.ImageVecto
 fun TournamentEnrollDialogPreview() {
     TournamentEnrollDialog(
         tournament = TournamentEvent(
+            id = 1,
             category = "BASQUETEBOL • LIGA PRO",
             title = "Master Cup Lisboa 2024",
             date = "15 MAIO, 2024",
@@ -222,7 +236,8 @@ fun TournamentEnrollDialogPreview() {
             isSoldOut = false,
             sportType = "BASKETBALL",
             icon = Icons.Default.SportsBasketball,
-            localDate = LocalDate.of(2024, 5, 15)
+            localDate = LocalDate.of(2024, 5, 15),
+            price = null
         ),
         onEnroll = {},
         onDismiss = {}

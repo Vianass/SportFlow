@@ -10,117 +10,138 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
-import com.sportflow.app.ui.localization.LocalAppLanguage
-import com.sportflow.app.ui.localization.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.sportflow.app.model.Enrollment
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
-import com.sportflow.app.ui.theme.SportFlowTextGray
+import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
 
 // Enum for Subscription Status
 enum class SubscriptionStatus {
     CONFIRMED,
     PENDING,
-    FINISHED
+    REJECTED
 }
 
 // Data model for User Subscriptions
 data class UserSubscription(
+    val enrollmentId: Long,
     val title: String,
     val subtitle: String,
     val date: String,
     val location: String,
     val status: SubscriptionStatus,
+    val paymentStatus: String,
+    val category: String,
+    val priceLabel: String,
+    val canPay: Boolean,
     val infoText: String? = null,
     val resultText: String? = null
 )
 
 @Composable
-fun UserSubscriptionsScreen() {
-    val currentLanguage = LocalAppLanguage.current
-    // Interactive filter state: 0 = TODAS, 1 = ATIVAS, 2 = CONCLUÍDAS
+fun UserSubscriptionsScreen(
+    viewModel: UserSubscriptionsViewModel = viewModel()
+) {
     var selectedFilter by remember { mutableStateOf(0) }
     var selectedSubscription by remember { mutableStateOf<UserSubscription?>(null) }
-    var showPaymentDialogFor by remember { mutableStateOf<UserSubscription?>(null) }
+
+    val uiState by viewModel.uiState.collectAsState()
+
+    val subscriptions = remember(uiState.enrollments) {
+        uiState.enrollments.map { it.toUserSubscription() }
+    }
+
+    LaunchedEffect(subscriptions, selectedSubscription?.enrollmentId) {
+        val currentId = selectedSubscription?.enrollmentId ?: return@LaunchedEffect
+        selectedSubscription = subscriptions.firstOrNull { it.enrollmentId == currentId }
+    }
 
     if (selectedSubscription != null) {
         com.sportflow.app.ui.components.SubscriptionDetailsDialog(
             subscription = selectedSubscription!!,
+            isProcessingPayment = uiState.updatingPaymentEnrollmentId == selectedSubscription!!.enrollmentId,
+            onMarkAsPaid = { viewModel.markEnrollmentAsPaid(selectedSubscription!!.enrollmentId) },
             onDismiss = { selectedSubscription = null }
         )
     }
 
-    // Mock data matching the mockup exactly
-    val subscriptions = remember {
-        androidx.compose.runtime.mutableStateListOf(
-            UserSubscription(
-                title = "Padel Master Series",
-                subtitle = "Torneio Open de Lisboa",
-                date = "15 Out 2024",
-                location = "Lisbon Racket Centre",
-                status = SubscriptionStatus.CONFIRMED
-            ),
-            UserSubscription(
-                title = "CrossFit Invitational",
-                subtitle = "Elite Arena Games 2024",
-                date = "02 Nov 2024",
-                location = "Arena Norte, Porto",
-                status = SubscriptionStatus.PENDING,
-                infoText = "A aguardar confirmação de pagamento via MBWay."
-            ),
-            UserSubscription(
-                title = "Ténis Amador",
-                subtitle = "Open de Verão Quinta do Lago",
-                date = "20 Ago 2024",
-                location = "Vilamoura Academy", // Representative coordinates
-                status = SubscriptionStatus.FINISHED,
-                resultText = "4º Classificado"
-            )
-        )
-    }
-
-    if (showPaymentDialogFor != null) {
-        com.sportflow.app.ui.components.PaymentDialog(
-            currentLanguage = currentLanguage,
-            isCheckout = true,
-            onPaymentSuccess = {
-                val index = subscriptions.indexOf(showPaymentDialogFor)
-                if (index != -1) {
-                    subscriptions[index] = subscriptions[index].copy(
-                        status = SubscriptionStatus.CONFIRMED,
-                        infoText = null
-                    )
-                }
-            },
-            onDismiss = { showPaymentDialogFor = null }
-        )
-    }
-
-    // Dynamic filtering logic
-    val filteredSubscriptions = remember(selectedFilter, subscriptions.toList()) {
+    val filteredSubscriptions = remember(selectedFilter, subscriptions) {
         when (selectedFilter) {
             1 -> subscriptions.filter { it.status == SubscriptionStatus.CONFIRMED || it.status == SubscriptionStatus.PENDING }
-            2 -> subscriptions.filter { it.status == SubscriptionStatus.FINISHED }
+            2 -> subscriptions.filter { it.status == SubscriptionStatus.REJECTED }
             else -> subscriptions
         }
+    }
+
+    if (uiState.isLoading) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = SportFlowGreen)
+        }
+        return
+    }
+
+    if (uiState.errorMessage != null) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.ErrorOutline,
+                contentDescription = null,
+                tint = Color(0xFFDC2626),
+                modifier = Modifier.size(48.dp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Erro ao carregar inscrições",
+                fontWeight = FontWeight.Bold,
+                color = SportFlowDarkBlue
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = uiState.errorMessage ?: "Erro desconhecido.",
+                color = Color(0xFF64748B),
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = viewModel::loadEnrollments,
+                colors = ButtonDefaults.buttonColors(containerColor = SportFlowGreen)
+            ) {
+                Text("Tentar novamente")
+            }
+        }
+        return
     }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
-        // Hero Header Section
         item {
             Column(
                 modifier = Modifier
@@ -143,7 +164,6 @@ fun UserSubscriptionsScreen() {
             }
         }
 
-        // Segmented Filter Pills
         item {
             Row(
                 modifier = Modifier
@@ -151,7 +171,7 @@ fun UserSubscriptionsScreen() {
                     .padding(horizontal = 24.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                val filters = listOf("TODAS", "ATIVAS", "CONCLUÍDAS")
+                val filters = listOf("TODAS", "ATIVAS", "REJEITADAS")
                 filters.forEachIndexed { index, label ->
                     val isSelected = selectedFilter == index
                     val bg = if (isSelected) SportFlowDarkBlue else Color(0xFFEFF6FF)
@@ -179,13 +199,44 @@ fun UserSubscriptionsScreen() {
             Spacer(modifier = Modifier.height(12.dp))
         }
 
-        // List of Subscription Cards
-        items(filteredSubscriptions) { subscription ->
-            SubscriptionCard(
-                subscription = subscription,
-                onViewDetails = { selectedSubscription = subscription },
-                onCheckout = { showPaymentDialogFor = subscription }
-            )
+        if (filteredSubscriptions.isEmpty()) {
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 48.dp, start = 24.dp, end = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = Color(0xFF94A3B8),
+                        modifier = Modifier.size(56.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Nenhuma inscrição encontrada",
+                        fontWeight = FontWeight.Bold,
+                        color = SportFlowDarkBlue
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Quando te inscreveres num torneio, a inscrição aparece aqui.",
+                        color = Color(0xFF64748B),
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        } else {
+            items(filteredSubscriptions) { subscription ->
+                SubscriptionCard(
+                    subscription = subscription,
+                    isProcessingPayment = uiState.updatingPaymentEnrollmentId == subscription.enrollmentId,
+                    onViewDetails = { selectedSubscription = subscription },
+                    onMarkAsPaid = { viewModel.markEnrollmentAsPaid(subscription.enrollmentId) }
+                )
+            }
         }
     }
 }
@@ -193,18 +244,18 @@ fun UserSubscriptionsScreen() {
 @Composable
 fun SubscriptionCard(
     subscription: UserSubscription,
+    isProcessingPayment: Boolean = false,
     onViewDetails: () -> Unit = {},
-    onCheckout: () -> Unit = {}
+    onMarkAsPaid: () -> Unit = {}
 ) {
-    // Dynamic styles based on status
     val cardBorderColor = if (subscription.status == SubscriptionStatus.PENDING) {
-        BorderStroke(1.dp, Color(0xFF86EFAC)) // Green outline for pending attention
+        BorderStroke(1.dp, Color(0xFF86EFAC))
     } else {
         BorderStroke(0.5.dp, Color(0xFFE2E8F0))
     }
 
-    val cardBg = if (subscription.status == SubscriptionStatus.FINISHED) {
-        Color(0xFFEFF6FF).copy(alpha = 0.4f) // Shaded/dimmed background for historical events
+    val cardBg = if (subscription.status == SubscriptionStatus.REJECTED) {
+        Color(0xFFEFF6FF).copy(alpha = 0.4f)
     } else {
         Color.White
     }
@@ -216,23 +267,20 @@ fun SubscriptionCard(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = cardBg),
         border = cardBorderColor,
-        elevation = CardDefaults.cardElevation(defaultElevation = if (subscription.status == SubscriptionStatus.FINISHED) 0.dp else 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (subscription.status == SubscriptionStatus.REJECTED) 0.dp else 2.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(18.dp)
         ) {
-            // Top Row: Status badge and Date
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Status Badge
                 StatusBadge(status = subscription.status)
 
-                // Date
                 Text(
                     text = subscription.date,
                     fontSize = 14.sp,
@@ -243,12 +291,13 @@ fun SubscriptionCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Title and Subtitle
             Text(
                 text = subscription.title,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = SportFlowDarkBlue
+                color = SportFlowDarkBlue,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
@@ -259,7 +308,6 @@ fun SubscriptionCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Location details
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -280,8 +328,7 @@ fun SubscriptionCard(
                 )
             }
 
-            // Info Box / Warning Box for PENDING status
-            if (subscription.status == SubscriptionStatus.PENDING && subscription.infoText != null) {
+            if (subscription.infoText != null) {
                 Spacer(modifier = Modifier.height(14.dp))
                 Row(
                     modifier = Modifier
@@ -293,7 +340,6 @@ fun SubscriptionCard(
                             RoundedCornerShape(8.dp)
                         )
                 ) {
-                    // Left vertical green highlight bar
                     Box(
                         modifier = Modifier
                             .width(4.dp)
@@ -316,37 +362,39 @@ fun SubscriptionCard(
                 }
             }
 
-            // Trophy/Medal Result Badge for FINISHED status
-            if (subscription.status == SubscriptionStatus.FINISHED && subscription.resultText != null) {
-                Spacer(modifier = Modifier.height(14.dp))
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFFEFF6FF))
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.EmojiEvents,
-                        contentDescription = null,
-                        tint = Color(0xFF22C55E),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = subscription.resultText,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = SportFlowDarkBlue
-                    )
-                }
-            }
-
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Action Buttons
             when (subscription.status) {
                 SubscriptionStatus.CONFIRMED -> {
+                    if (subscription.canPay) {
+                        Button(
+                            onClick = onMarkAsPaid,
+                            enabled = !isProcessingPayment,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = SportFlowGreen)
+                        ) {
+                            if (isProcessingPayment) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = SportFlowDarkBlue
+                                )
+                            } else {
+                                Text(
+                                    text = "FINALIZAR PAGAMENTO",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = SportFlowDarkBlue
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
                     Button(
                         onClick = onViewDetails,
                         modifier = Modifier
@@ -364,9 +412,10 @@ fun SubscriptionCard(
                         )
                     }
                 }
+
                 SubscriptionStatus.PENDING -> {
                     Button(
-                        onClick = onCheckout,
+                        onClick = onViewDetails,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(44.dp),
@@ -374,15 +423,31 @@ fun SubscriptionCard(
                         colors = ButtonDefaults.buttonColors(containerColor = SportFlowGreen)
                     ) {
                         Text(
-                            text = "FINALIZAR PAGAMENTO",
+                            text = "VER INSCRIÇÃO",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Black,
                             color = SportFlowDarkBlue
                         )
                     }
                 }
-                SubscriptionStatus.FINISHED -> {
-                    // Historical finished cards do not show primary actions directly
+
+                SubscriptionStatus.REJECTED -> {
+                    Button(
+                        onClick = onViewDetails,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                    ) {
+                        Text(
+                            text = "VER DETALHES",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = SportFlowDarkBlue
+                        )
+                    }
                 }
             }
         }
@@ -395,17 +460,19 @@ fun StatusBadge(status: SubscriptionStatus) {
         SubscriptionStatus.CONFIRMED -> Triple(
             Color(0xFFDCFCE7),
             Color(0xFF16A34A),
-            "CONFIRMADA"
+            "APROVADA"
         )
+
         SubscriptionStatus.PENDING -> Triple(
             Color(0xFFEFF6FF),
             Color(0xFF2563EB),
             "PENDENTE"
         )
-        SubscriptionStatus.FINISHED -> Triple(
+
+        SubscriptionStatus.REJECTED -> Triple(
             Color(0xFFF1F5F9),
             Color(0xFF64748B),
-            "FINALIZADA"
+            "REJEITADA"
         )
     }
 
@@ -423,6 +490,75 @@ fun StatusBadge(status: SubscriptionStatus) {
             color = tc,
             letterSpacing = 0.5.sp
         )
+    }
+}
+
+private fun Enrollment.toUserSubscription(): UserSubscription {
+    val tournament = tournament
+    val status = when (this.status.uppercase(Locale.ROOT)) {
+        "APROVADA" -> SubscriptionStatus.CONFIRMED
+        "REJEITADA" -> SubscriptionStatus.REJECTED
+        else -> SubscriptionStatus.PENDING
+    }
+
+    val normalizedPaymentStatus = paymentStatus.uppercase(Locale.ROOT)
+    val isPaymentPending = normalizedPaymentStatus == "PENDENTE"
+    val canPay = status == SubscriptionStatus.CONFIRMED && isPaymentPending
+
+    val paymentInfo = when {
+        normalizedPaymentStatus == "PAGO" -> "Pagamento confirmado."
+        status == SubscriptionStatus.PENDING -> "Inscrição pendente. Aguarda aprovação do organizador antes de finalizar o pagamento."
+        canPay -> "Inscrição aprovada. Finaliza o pagamento para garantir a tua participação."
+        status == SubscriptionStatus.REJECTED -> "Inscrição rejeitada pelo organizador."
+        else -> "Pagamento pendente."
+    }
+
+    return UserSubscription(
+        enrollmentId = id,
+        title = tournament?.name ?: "Torneio removido",
+        subtitle = tournament?.sport?.toSportLabel() ?: "Torneio",
+        date = tournament?.startDate?.formatTournamentDate() ?: registeredAt?.formatTournamentDate() ?: "Data a definir",
+        location = tournament?.location ?: "Local a definir",
+        status = status,
+        paymentStatus = normalizedPaymentStatus,
+        category = tournament?.category ?: "Categoria a definir",
+        priceLabel = tournament?.price.formatPrice(),
+        canPay = canPay,
+        infoText = if (normalizedPaymentStatus == "PAGO") null else paymentInfo,
+        resultText = null
+    )
+}
+
+private fun String.formatTournamentDate(): String? {
+    val localDate = runCatching {
+        OffsetDateTime.parse(this).toLocalDate()
+    }.getOrElse {
+        runCatching { LocalDate.parse(this) }.getOrNull()
+    } ?: return null
+
+    val month = localDate.month.getDisplayName(
+        TextStyle.SHORT,
+        Locale.forLanguageTag("pt")
+    ).replaceFirstChar { it.uppercase(Locale.forLanguageTag("pt")) }
+
+    return "${localDate.dayOfMonth} $month ${localDate.year}"
+}
+
+private fun String.toSportLabel(): String {
+    return when (uppercase(Locale.ROOT)) {
+        "SOCCER" -> "Futebol"
+        "BASKETBALL" -> "Basquetebol"
+        "TENNIS" -> "Ténis"
+        "PADEL" -> "Padel"
+        else -> this
+    }
+}
+
+private fun Double?.formatPrice(): String {
+    return when {
+        this == null -> "Valor a definir"
+        this <= 0.0 -> "Gratuito"
+        else -> "%.2f€".format(Locale.forLanguageTag("pt-PT"), this)
     }
 }
 

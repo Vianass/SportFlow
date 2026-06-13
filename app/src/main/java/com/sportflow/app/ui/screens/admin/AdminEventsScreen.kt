@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,12 +29,20 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
 import com.sportflow.app.ui.theme.SportFlowTextGray
+import com.sportflow.app.ui.viewmodel.AdminViewModel
+import com.sportflow.app.model.Enrollment
+import com.sportflow.app.model.Tournament
+import com.sportflow.app.ui.components.EnrollmentManagementSection
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 // Data model for Admin Tournaments
 data class AdminTournament(
+    val source: Tournament,
     val title: String,
     val subtitle: String,
     val category: String,
@@ -57,66 +66,157 @@ data class AdminCalendarMatch(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdminEventsScreen() {
+fun AdminEventsScreen(
+    viewModel: AdminViewModel = viewModel(),
+    createFormRequest: Int = 0
+) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf(0) } // 0 = TODOS, 1 = ATIVOS, 2 = CONCLUÍDOS
+    var showFullCalendar by remember { mutableStateOf(false) }
+    var selectedTournament by remember { mutableStateOf<Tournament?>(null) }
+    var isEditingTournament by remember { mutableStateOf(false) }
+    val state by viewModel.uiState.collectAsState()
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
-    val tournaments = remember {
-        listOf(
-            AdminTournament(
-                title = "COPA ELITE CHAMPIONS 2024",
-                subtitle = "A maior competição regional de futebol society, reunindo as 16 melhores equipas...",
-                category = "FUTEBOL",
-                statusLabel = "",
-                statusColor = Color.Transparent,
-                sportType = "FUTEBOL",
-                icon = Icons.Default.SportsFootball,
-                isCoverEnabled = true,
-                details = listOf("ELIMINATÓRIAS", "16 EQUIPAS", "FINAL: 20 OUT")
-            ),
-            AdminTournament(
-                title = "LIGA STREET BASKET",
-                subtitle = "Torneio 3x3 modalidade livre para atletas federados.",
-                category = "BASQUETEBOL",
-                statusLabel = "INSCRIÇÕES ABERTAS",
-                statusColor = Color(0xFF64748B),
-                sportType = "BASKETBALL",
-                icon = Icons.Default.SportsBasketball,
-                isCoverEnabled = false,
-                hasAvatars = true
-            ),
-            AdminTournament(
-                title = "OPEN TÉNIS PRAIA",
-                subtitle = "Circuito de verão com premiação recorde em 2024.",
-                category = "TÉNIS",
-                statusLabel = "FINALIZADO",
-                statusColor = Color(0xFFEF4444),
-                sportType = "TENNIS",
-                icon = Icons.Default.SportsTennis,
-                isCoverEnabled = false,
-                winnerText = "VENCEDOR: G. SANTOS"
+    val tournaments = state.tournaments.map { tournament ->
+        val finished = isFinishedStatus(tournament.status)
+        AdminTournament(
+            source = tournament,
+            title = tournament.name,
+            subtitle = listOfNotNull(tournament.location, tournament.startDate)
+                .joinToString(" • "),
+            category = tournament.category ?: tournament.sport ?: "SEM CATEGORIA",
+            statusLabel = tournament.status,
+            statusColor = if (finished) Color(0xFFEF4444) else Color(0xFF16A34A),
+            sportType = tournament.sport.orEmpty(),
+            icon = adminEventSportIcon(tournament.sport),
+            details = listOfNotNull(
+                tournament.category,
+                tournament.maxCapacity?.let { "$it PARTICIPANTES" },
+                tournament.startDate
             )
         )
     }
 
-    val calendarMatches = remember {
-        listOf(
-            AdminCalendarMatch(dateLabel = "HOJE", timeLabel = "19:30", category = "COPA ELITE", details = "Fénix FC vs Dragões"),
-            AdminCalendarMatch(dateLabel = "AMANHÃ", timeLabel = "10:00", category = "LIGA STREET", details = "Titãs 3x3 vs Mavericks"),
-            AdminCalendarMatch(dateLabel = "22 OUT", timeLabel = "14:00", category = "COPA ELITE", details = "Quartos-de-Final #3")
+    val tournamentsById = state.tournaments.associateBy { it.id }
+    val sortedGames = state.games.sortedBy { it.dateTime }
+    val calendarMatches = (if (showFullCalendar) sortedGames else sortedGames.take(10)).map { game ->
+        val homeTeam = game.homeTeamId?.let { state.teamNames[it] ?: "Equipa #$it" }
+            ?: "Equipa por definir"
+        val awayTeam = game.awayTeamId?.let { state.teamNames[it] ?: "Equipa #$it" }
+            ?: "Equipa por definir"
+        AdminCalendarMatch(
+            dateLabel = game.dateTime.substringBefore("T").takeLast(5),
+            timeLabel = game.dateTime.substringAfter("T", game.dateTime).take(5),
+            category = game.tournamentId?.let { tournamentsById[it]?.name }.orEmpty(),
+            details = "$homeTeam vs $awayTeam"
         )
     }
 
     // Dynamic filtering
-    val filteredTournaments = remember(selectedFilter, tournaments) {
+    val filteredTournaments = remember(selectedFilter, tournaments, searchQuery) {
         when (selectedFilter) {
-            1 -> tournaments.filter { it.statusLabel != "FINALIZADO" }
-            2 -> tournaments.filter { it.statusLabel == "FINALIZADO" }
+            1 -> tournaments.filterNot {
+                isFinishedStatus(it.statusLabel)
+            }
+            2 -> tournaments.filter {
+                isFinishedStatus(it.statusLabel)
+            }
             else -> tournaments
+        }.filter {
+            searchQuery.isBlank() ||
+                it.title.contains(searchQuery, ignoreCase = true) ||
+                it.category.contains(searchQuery, ignoreCase = true) ||
+                it.sportType.contains(searchQuery, ignoreCase = true)
         }
     }
 
+    val formItemIndex = 4 + filteredTournaments.size
+
+    LaunchedEffect(createFormRequest) {
+        if (createFormRequest > 0) {
+            withFrameNanos { }
+            listState.animateScrollToItem(formItemIndex)
+        }
+    }
+
+    LaunchedEffect(state.tournaments, selectedTournament?.id) {
+        val selectedId = selectedTournament?.id ?: return@LaunchedEffect
+        state.tournaments.firstOrNull { it.id == selectedId }?.let {
+            selectedTournament = it
+        }
+    }
+
+    LaunchedEffect(state.successMessage) {
+        if (state.successMessage == "Torneio atualizado com sucesso.") {
+            isEditingTournament = false
+            delay(3000)
+            viewModel.clearSuccess()
+        }
+    }
+
+    LaunchedEffect(selectedTournament?.id, state.currentAdminId) {
+        val tournament = selectedTournament ?: return@LaunchedEffect
+        if (tournament.organizerId == state.currentAdminId) {
+            viewModel.loadEnrollmentsForTournament(tournament.id)
+        } else {
+            viewModel.clearEnrollmentSelection()
+        }
+    }
+
+    selectedTournament?.let { tournament ->
+        AdminTournamentDetailScreen(
+            tournament = tournament,
+            isEditing = isEditingTournament,
+            isSubmitting = state.operationInProgress == "updateTournament:${tournament.id}",
+            errorMessage = state.errorMessage,
+            successMessage = state.successMessage,
+            canManageEnrollments = tournament.organizerId == state.currentAdminId,
+            enrollments = state.selectedTournamentEnrollments,
+            isLoadingEnrollments = state.isLoadingEnrollments,
+            enrollmentsErrorMessage = state.enrollmentsErrorMessage,
+            enrollmentSuccessMessage = state.enrollmentSuccessMessage,
+            updatingEnrollmentId = state.updatingEnrollmentId,
+            onBack = {
+                isEditingTournament = false
+                selectedTournament = null
+                viewModel.clearEnrollmentSelection()
+                viewModel.clearError()
+                viewModel.clearSuccess()
+            },
+            onEdit = { isEditingTournament = true },
+            onCancelEdit = {
+                isEditingTournament = false
+                viewModel.clearError()
+                viewModel.clearSuccess()
+            },
+            onClearMessages = {
+                viewModel.clearError()
+                viewModel.clearSuccess()
+            },
+            onRetryEnrollments = { viewModel.loadEnrollmentsForTournament(tournament.id) },
+            onApproveEnrollment = viewModel::approveEnrollment,
+            onRejectEnrollment = viewModel::rejectEnrollment,
+            onSubmit = { name, sport, category, date, location, capacity, price, status ->
+                viewModel.updateTournament(
+                    tournamentId = tournament.id,
+                    name = name,
+                    sport = sport,
+                    category = category,
+                    date = date,
+                    location = location,
+                    capacity = capacity,
+                    price = price,
+                    status = status
+                )
+            }
+        )
+        return
+    }
+
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
@@ -154,7 +254,9 @@ fun AdminEventsScreen() {
         // 2. Primary "+ CRIAR TORNEIO" Action Button
         item {
             Button(
-                onClick = { /* Create a tournament */ },
+                onClick = {
+                    scope.launch { listState.animateScrollToItem(formItemIndex) }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp, vertical = 4.dp)
@@ -261,26 +363,49 @@ fun AdminEventsScreen() {
 
         // 4. Tournaments list
         items(filteredTournaments) { tournament ->
-            AdminTournamentCard(tournament = tournament)
+            AdminTournamentCard(
+                tournament = tournament,
+                onClick = { selectedTournament = tournament.source }
+            )
         }
 
         // 5. Match Calendar Card ("CALENDÁRIO DE JOGOS")
         item {
             Spacer(modifier = Modifier.height(16.dp))
-            MatchCalendarCard(matches = calendarMatches)
+            MatchCalendarCard(
+                matches = calendarMatches,
+                showFullCalendar = showFullCalendar,
+                onToggleFullCalendar = { showFullCalendar = !showFullCalendar }
+            )
         }
 
         // 6. New Competition Form Card ("NOVA COMPETIÇÃO")
         item {
             Spacer(modifier = Modifier.height(20.dp))
-            NewCompetitionFormCard()
+            NewCompetitionFormCard(
+                initialTournament = null,
+                isSubmitting = state.operationInProgress == "createTournament",
+                errorMessage = state.errorMessage,
+                successMessage = state.successMessage,
+                onClearMessages = {
+                    viewModel.clearError()
+                    viewModel.clearSuccess()
+                },
+                onSubmit = { name, sport, category, date, location, capacity, price, _ ->
+                    viewModel.createTournament(name, sport, category, date, location, capacity, price)
+                }
+            )
         }
     }
 }
 
 @Composable
-fun AdminTournamentCard(tournament: AdminTournament) {
+fun AdminTournamentCard(
+    tournament: AdminTournament,
+    onClick: () -> Unit
+) {
     Card(
+        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp, vertical = 10.dp),
@@ -401,7 +526,7 @@ fun AdminTournamentCard(tournament: AdminTournament) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Stack of Avatars mock
+                        // Stack visual de participantes.
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -501,6 +626,162 @@ fun AdminTournamentCard(tournament: AdminTournament) {
 }
 
 @Composable
+private fun AdminTournamentDetailScreen(
+    tournament: Tournament,
+    isEditing: Boolean,
+    isSubmitting: Boolean,
+    errorMessage: String?,
+    successMessage: String?,
+    canManageEnrollments: Boolean,
+    enrollments: List<Enrollment>,
+    isLoadingEnrollments: Boolean,
+    enrollmentsErrorMessage: String?,
+    enrollmentSuccessMessage: String?,
+    updatingEnrollmentId: Long?,
+    onBack: () -> Unit,
+    onEdit: () -> Unit,
+    onCancelEdit: () -> Unit,
+    onClearMessages: () -> Unit,
+    onRetryEnrollments: () -> Unit,
+    onApproveEnrollment: (Long) -> Unit,
+    onRejectEnrollment: (Long) -> Unit,
+    onSubmit: (String, String, String, String, String, String, String, String) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Voltar")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text(
+                        text = "DETALHE DO TORNEIO",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SportFlowGreen
+                    )
+                    Text(
+                        text = tournament.name,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Black,
+                        color = SportFlowDarkBlue
+                    )
+                }
+            }
+        }
+
+        if (isEditing) {
+            item {
+                NewCompetitionFormCard(
+                    initialTournament = tournament,
+                    isSubmitting = isSubmitting,
+                    errorMessage = errorMessage,
+                    successMessage = successMessage,
+                    onClearMessages = onClearMessages,
+                    onSubmit = onSubmit
+                )
+            }
+            item {
+                OutlinedButton(
+                    onClick = onCancelEdit,
+                    enabled = !isSubmitting,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("CANCELAR EDIÇÃO")
+                }
+            }
+        } else item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    AdminTournamentDetailRow("Estado", tournament.status)
+                    AdminTournamentDetailRow("Modalidade", tournament.sport ?: "Não definida")
+                    AdminTournamentDetailRow("Categoria", tournament.category ?: "Não definida")
+                    AdminTournamentDetailRow("Data de início", tournament.startDate)
+                    AdminTournamentDetailRow("Localização", tournament.location ?: "Não definida")
+                    AdminTournamentDetailRow(
+                        "Capacidade máxima",
+                        tournament.maxCapacity?.toString() ?: "Não definida"
+                    )
+                    AdminTournamentDetailRow(
+                        "Preço",
+                        tournament.price?.let { "%.2f €".format(it) } ?: "Não definido"
+                    )
+                    AdminTournamentDetailRow(
+                        "Organizador",
+                        tournament.organizerId ?: "Não atribuído"
+                    )
+                }
+            }
+        }
+
+        if (!isEditing) {
+            item {
+                Button(
+                    onClick = onEdit,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = SportFlowGreen)
+                ) {
+                    Icon(Icons.Default.Edit, contentDescription = null, tint = SportFlowDarkBlue)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("EDITAR TORNEIO", color = SportFlowDarkBlue, fontWeight = FontWeight.Black)
+                }
+            }
+
+            if (canManageEnrollments) {
+                item {
+                    EnrollmentManagementSection(
+                        enrollments = enrollments,
+                        isLoading = isLoadingEnrollments,
+                        errorMessage = enrollmentsErrorMessage,
+                        successMessage = enrollmentSuccessMessage,
+                        updatingEnrollmentId = updatingEnrollmentId,
+                        onRetry = onRetryEnrollments,
+                        onApproveEnrollment = onApproveEnrollment,
+                        onRejectEnrollment = onRejectEnrollment
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdminTournamentDetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.weight(0.42f),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF64748B)
+        )
+        Text(
+            text = value,
+            modifier = Modifier.weight(0.58f),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            color = SportFlowDarkBlue
+        )
+    }
+}
+
+@Composable
 fun TournamentDetailItem(icon: ImageVector, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
@@ -520,7 +801,11 @@ fun TournamentDetailItem(icon: ImageVector, label: String) {
 }
 
 @Composable
-fun MatchCalendarCard(matches: List<AdminCalendarMatch>) {
+fun MatchCalendarCard(
+    matches: List<AdminCalendarMatch>,
+    showFullCalendar: Boolean,
+    onToggleFullCalendar: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -606,7 +891,7 @@ fun MatchCalendarCard(matches: List<AdminCalendarMatch>) {
 
             // VER CALENDÁRIO COMPLETO button
             Button(
-                onClick = { /* Full calendar */ },
+                onClick = onToggleFullCalendar,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(42.dp),
@@ -615,7 +900,7 @@ fun MatchCalendarCard(matches: List<AdminCalendarMatch>) {
                 border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.15f))
             ) {
                 Text(
-                    text = "VER CALENDÁRIO COMPLETO",
+                    text = if (showFullCalendar) "MOSTRAR MENOS" else "VER CALENDÁRIO COMPLETO",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = Color.White,
@@ -628,15 +913,45 @@ fun MatchCalendarCard(matches: List<AdminCalendarMatch>) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NewCompetitionFormCard() {
-    var eventName by remember { mutableStateOf("") }
-    var selectedSport by remember { mutableStateOf("Futebol") }
-    var selectedType by remember { mutableStateOf("Eliminatórias") }
+fun NewCompetitionFormCard(
+    initialTournament: Tournament?,
+    isSubmitting: Boolean,
+    errorMessage: String?,
+    successMessage: String?,
+    onClearMessages: () -> Unit,
+    onSubmit: (String, String, String, String, String, String, String, String) -> Unit
+) {
+    val isEditing = initialTournament != null
+    var eventName by remember(initialTournament?.id) { mutableStateOf(initialTournament?.name.orEmpty()) }
+    var selectedSport by remember(initialTournament?.id) { mutableStateOf(initialTournament?.sport ?: "Futebol") }
+    var selectedType by remember(initialTournament?.id) { mutableStateOf(initialTournament?.category ?: "Eliminatórias") }
+    var eventDate by remember(initialTournament?.id) {
+        mutableStateOf(initialTournament?.startDate?.substringBefore("T").orEmpty())
+    }
+    var location by remember(initialTournament?.id) { mutableStateOf(initialTournament?.location.orEmpty()) }
+    var capacity by remember(initialTournament?.id) { mutableStateOf(initialTournament?.maxCapacity?.toString().orEmpty()) }
+    var price by remember(initialTournament?.id) { mutableStateOf(initialTournament?.price?.toString().orEmpty()) }
+    var selectedStatus by remember(initialTournament?.id) { mutableStateOf(initialTournament?.status ?: "ABERTO") }
+    var sportExpanded by remember { mutableStateOf(false) }
+    var typeExpanded by remember { mutableStateOf(false) }
+    var statusExpanded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(successMessage) {
+        if (successMessage != null && !isEditing) {
+            eventName = ""
+            eventDate = ""
+            location = ""
+            capacity = ""
+            price = ""
+            delay(3000)
+            onClearMessages()
+        }
+    }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = if (isEditing) 0.dp else 24.dp),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF).copy(alpha = 0.7f)),
         border = BorderStroke(0.5.dp, Color(0xFFDBEAFE))
@@ -647,7 +962,7 @@ fun NewCompetitionFormCard() {
                 .padding(18.dp)
         ) {
             Text(
-                text = "NOVA COMPETIÇÃO",
+                text = if (isEditing) "EDITAR TORNEIO" else "NOVA COMPETIÇÃO",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Black,
                 color = SportFlowDarkBlue,
@@ -667,7 +982,10 @@ fun NewCompetitionFormCard() {
             Spacer(modifier = Modifier.height(4.dp))
             OutlinedTextField(
                 value = eventName,
-                onValueChange = { eventName = it },
+                onValueChange = {
+                    eventName = it
+                    onClearMessages()
+                },
                 placeholder = { 
                     Text(
                         "Ex: Torneio de Primavera", 
@@ -705,24 +1023,33 @@ fun NewCompetitionFormCard() {
                         letterSpacing = 0.5.sp
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color.White)
-                            .border(0.5.dp, Color(0xFFE2E8F0), RoundedCornerShape(10.dp))
-                            .clickable { /* Dropdown modalidade */ }
-                            .padding(horizontal = 12.dp),
-                        contentAlignment = Alignment.CenterStart
+                    ExposedDropdownMenuBox(
+                        expanded = sportExpanded,
+                        onExpandedChange = { sportExpanded = !sportExpanded }
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        OutlinedTextField(
+                            value = selectedSport,
+                            onValueChange = {},
+                            readOnly = true,
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sportExpanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = adminFormFieldColors()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = sportExpanded,
+                            onDismissRequest = { sportExpanded = false }
                         ) {
-                            Text(text = selectedSport, fontSize = 12.sp, color = SportFlowDarkBlue, fontWeight = FontWeight.Medium)
-                            Icon(imageVector = Icons.Default.KeyboardArrowDown, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(16.dp))
+                            listOf("Futebol", "Basquetebol", "Ténis").forEach { sport ->
+                                DropdownMenuItem(
+                                    text = { Text(sport) },
+                                    onClick = {
+                                        selectedSport = sport
+                                        sportExpanded = false
+                                        onClearMessages()
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -737,50 +1064,200 @@ fun NewCompetitionFormCard() {
                         letterSpacing = 0.5.sp
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color.White)
-                            .border(0.5.dp, Color(0xFFE2E8F0), RoundedCornerShape(10.dp))
-                            .clickable { /* Dropdown tipo */ }
-                            .padding(horizontal = 12.dp),
-                        contentAlignment = Alignment.CenterStart
+                    ExposedDropdownMenuBox(
+                        expanded = typeExpanded,
+                        onExpandedChange = { typeExpanded = !typeExpanded }
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        OutlinedTextField(
+                            value = selectedType,
+                            onValueChange = {},
+                            readOnly = true,
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeExpanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = adminFormFieldColors()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = typeExpanded,
+                            onDismissRequest = { typeExpanded = false }
                         ) {
-                            Text(text = selectedType, fontSize = 12.sp, color = SportFlowDarkBlue, fontWeight = FontWeight.Medium)
-                            Icon(imageVector = Icons.Default.KeyboardArrowDown, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(16.dp))
+                            listOf("Eliminatórias", "Liga", "Grupos").forEach { type ->
+                                DropdownMenuItem(
+                                    text = { Text(type) },
+                                    onClick = {
+                                        selectedType = type
+                                        typeExpanded = false
+                                        onClearMessages()
+                                    }
+                                )
+                            }
                         }
                     }
                 }
+            }
+
+            if (isEditing) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "ESTADO",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF64748B)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                ExposedDropdownMenuBox(
+                    expanded = statusExpanded,
+                    onExpandedChange = { statusExpanded = !statusExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = selectedStatus,
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(statusExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = adminFormFieldColors()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = statusExpanded,
+                        onDismissRequest = { statusExpanded = false }
+                    ) {
+                        listOf("ABERTO", "ATIVO", "CONCLUIDO", "FINALIZADO").forEach { status ->
+                            DropdownMenuItem(
+                                text = { Text(status) },
+                                onClick = {
+                                    selectedStatus = status
+                                    statusExpanded = false
+                                    onClearMessages()
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            AdminCompetitionTextField("DATA DO EVENTO", eventDate, "AAAA-MM-DD") {
+                eventDate = it
+                onClearMessages()
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            AdminCompetitionTextField("LOCALIZAÇÃO", location, "Ex: Pavilhão Municipal") {
+                location = it
+                onClearMessages()
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                AdminCompetitionTextField(
+                    label = "CAPACIDADE",
+                    value = capacity,
+                    placeholder = "16",
+                    modifier = Modifier.weight(1f)
+                ) {
+                    capacity = it
+                    onClearMessages()
+                }
+                AdminCompetitionTextField(
+                    label = "PREÇO",
+                    value = price,
+                    placeholder = "0.00",
+                    modifier = Modifier.weight(1f)
+                ) {
+                    price = it
+                    onClearMessages()
+                }
+            }
+
+            errorMessage?.let {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(it, color = Color(0xFFDC2626), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+            successMessage?.let {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(it, color = Color(0xFF15803D), fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             // Action button: Continuar Configuração
             Button(
-                onClick = { /* Continue config */ },
+                onClick = {
+                    onSubmit(
+                        eventName,
+                        selectedSport,
+                        selectedType,
+                        eventDate,
+                        location,
+                        capacity,
+                        price,
+                        selectedStatus
+                    )
+                },
+                enabled = !isSubmitting,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(46.dp),
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = SportFlowDarkBlue)
             ) {
-                Text(
-                    text = "CONTINUAR CONFIGURAÇÃO",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color.White,
-                    letterSpacing = 0.5.sp
-                )
+                if (isSubmitting) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
+                } else {
+                    Text(
+                        text = if (isEditing) "GUARDAR ALTERAÇÕES" else "CRIAR TORNEIO",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White,
+                        letterSpacing = 0.5.sp
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+private fun AdminCompetitionTextField(
+    label: String,
+    value: String,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    onValueChange: (String) -> Unit
+) {
+    Column(modifier = modifier) {
+        Text(label, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+        Spacer(modifier = Modifier.height(4.dp))
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = { Text(placeholder, fontSize = 12.sp, color = Color(0xFF94A3B8)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            shape = RoundedCornerShape(10.dp),
+            colors = adminFormFieldColors()
+        )
+    }
+}
+
+@Composable
+private fun adminFormFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedContainerColor = Color.White,
+    unfocusedContainerColor = Color.White,
+    focusedBorderColor = Color(0xFF3B82F6),
+    unfocusedBorderColor = Color(0xFFE2E8F0)
+)
+
+private fun isFinishedStatus(status: String): Boolean {
+    val normalized = status.uppercase()
+        .replace('Í', 'I')
+        .replace('Á', 'A')
+    return normalized == "FINALIZADO" || normalized == "CONCLUIDO" || normalized == "TERMINADO"
+}
+
+private fun adminEventSportIcon(sport: String?): ImageVector = when (sport?.uppercase()) {
+    "BASQUETEBOL", "BASKETBALL" -> Icons.Default.SportsBasketball
+    "TÉNIS", "TENIS", "TENNIS" -> Icons.Default.SportsTennis
+    else -> Icons.Default.SportsFootball
 }
 
 @Preview(showBackground = true)
