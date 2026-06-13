@@ -20,14 +20,46 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sportflow.app.R
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
 import com.sportflow.app.ui.theme.SportFlowTextGray
+import com.sportflow.app.ui.viewmodel.AdminViewModel
 
 @Composable
-fun AdminDashboardScreen(onLogout: () -> Unit = {}) {
-    var selectedTab by remember { mutableStateOf(3) } // Defaulting to tab 3 (Perfil) to preview it first!
+fun AdminDashboardScreen(
+    onLogout: () -> Unit = {},
+    adminViewModel: AdminViewModel = viewModel()
+) {
+    var selectedTab by remember { mutableStateOf(0) }
+    var createFormRequest by remember { mutableIntStateOf(0) }
+    val adminState by adminViewModel.uiState.collectAsState()
+
+    if (!adminState.accessChecked || adminState.isLoading && !adminState.isAuthorized) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = SportFlowGreen)
+        }
+        return
+    }
+
+    if (!adminState.isAuthorized) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = Color.Red, modifier = Modifier.size(48.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = adminState.errorMessage ?: "Acesso reservado a administradores ativos.",
+                color = Color.Red
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+            Button(onClick = onLogout) { Text("Voltar ao Login") }
+        }
+        return
+    }
 
     Scaffold(
         topBar = { SportFlowAdminHeader() },
@@ -45,10 +77,20 @@ fun AdminDashboardScreen(onLogout: () -> Unit = {}) {
                 .padding(paddingValues)
         ) {
             when (selectedTab) {
-                0 -> AdminHomeScreen()
-                1 -> AdminEventsScreen()
-                2 -> AdminStatsScreen()
-                3 -> AdminProfileScreen(onLogout = onLogout)
+                0 -> AdminHomeScreen(
+                    viewModel = adminViewModel,
+                    onOpenEvents = { selectedTab = 1 },
+                    onCreateEvent = {
+                        createFormRequest++
+                        selectedTab = 1
+                    }
+                )
+                1 -> AdminEventsScreen(
+                    viewModel = adminViewModel,
+                    createFormRequest = createFormRequest
+                )
+                2 -> AdminStatsScreen(adminViewModel)
+                3 -> AdminProfileScreen(onLogout = onLogout, adminViewModel = adminViewModel)
             }
         }
     }
@@ -89,9 +131,9 @@ fun SportFlowAdminHeader() {
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Admin magnifying glass search icon on the left of profile circle
+            // TODO: ligar pesquisa global quando houver uma pesquisa transversal definida.
             IconButton(
-                onClick = { /* Handle global search */ },
+                onClick = {},
                 modifier = Modifier.size(36.dp)
             ) {
                 Icon(

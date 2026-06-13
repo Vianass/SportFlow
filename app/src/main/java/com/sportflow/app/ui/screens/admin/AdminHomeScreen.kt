@@ -13,8 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,9 +25,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
 import com.sportflow.app.ui.theme.SportFlowGreen
 import com.sportflow.app.ui.theme.SportFlowTextGray
+import com.sportflow.app.ui.viewmodel.AdminViewModel
 
 // Data model for Admin Active Tournaments
 data class AdminActiveTournament(
@@ -55,52 +56,45 @@ data class AdminNotification(
 )
 
 @Composable
-fun AdminHomeScreen() {
-    val activeTournaments = remember {
-        listOf(
+fun AdminHomeScreen(
+    viewModel: AdminViewModel = viewModel(),
+    onOpenEvents: () -> Unit = {},
+    onCreateEvent: () -> Unit = {}
+) {
+    val state by viewModel.uiState.collectAsState()
+    val allActiveTournaments = state.tournaments
+        .filterNot { isAdminFinishedStatus(it.status) }
+    val activeTournaments = allActiveTournaments
+        .take(5)
+        .map { tournament ->
             AdminActiveTournament(
-                title = "COPA ELITE VERÃO",
-                info = "16 Equipas • Quartos-de-final",
-                sportType = "SOCCER",
-                icon = Icons.Default.SportsFootball
-            ),
-            AdminActiveTournament(
-                title = "OPEN BASQUETEBOL",
-                info = "8 Equipas • Fase de Grupos",
-                startsInHours = 2,
-                sportType = "BASKETBALL",
-                icon = Icons.Default.SportsBasketball
+                title = tournament.name,
+                info = listOfNotNull(tournament.sport, tournament.category, tournament.location)
+                    .joinToString(" • ")
+                    .ifBlank { tournament.startDate },
+                sportType = tournament.sport.orEmpty().uppercase(),
+                icon = adminSportIcon(tournament.sport)
             )
-        )
-    }
+        }
 
-    val upcomingMatches = remember {
-        listOf(
-            UpcomingMatch(time = "14:30", homeTeam = "Titãs FC", awayTeam = "Águias do Sul"),
-            UpcomingMatch(time = "16:00", homeTeam = "Dragões BC", awayTeam = "Lobos Team")
-        )
-    }
-
-    val notifications = remember {
-        listOf(
-            AdminNotification(
-                title = "Nova Inscrição Recebida",
-                body = "A equipa 'Alpha Lions' confirmou a participação no Open.",
-                timeLabel = "Há 5 min",
-                color = Color(0xFF22C55E) // Green dot
-            ),
-            AdminNotification(
-                title = "Alerta de Arbitragem",
-                body = "Jogo das 16:00 ainda sem árbitro principal atribuído.",
-                timeLabel = "Há 22 min",
-                color = Color(0xFFEF4444) // Red dot
-            ),
-            AdminNotification(
-                title = "Relatório Semanal",
-                body = "O resumo financeiro da semana já se encontra disponível.",
-                timeLabel = "Há 2 horas",
-                color = Color(0xFF94A3B8) // Gray dot
+    val upcomingMatches = state.games
+        .filter { it.estado.equals("NAO_INICIADO", true) }
+        .sortedBy { it.dateTime }
+        .take(5)
+        .map { game ->
+            UpcomingMatch(
+                time = game.dateTime.substringAfter("T", game.dateTime).take(5),
+                homeTeam = game.homeTeamId?.let { state.teamNames[it] ?: "Equipa #$it" } ?: "Equipa por definir",
+                awayTeam = game.awayTeamId?.let { state.teamNames[it] ?: "Equipa #$it" } ?: "Equipa por definir"
             )
+        }
+
+    val notifications = state.pendingOrganizers.take(5).map { organizer ->
+        AdminNotification(
+            title = "Organizador pendente",
+            body = "${organizer.nome} aguarda aprovação administrativa.",
+            timeLabel = organizer.criadoEm?.take(10).orEmpty(),
+            color = Color(0xFFF59E0B)
         )
     }
 
@@ -151,7 +145,7 @@ fun AdminHomeScreen() {
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Bem-vindo novamente, Diretor. Tem 4 torneios ativos e 12 jogos agendados para hoje.",
+                    text = "Bem-vindo novamente, Diretor. Existem ${allActiveTournaments.size} torneios ativos e ${state.stats.totalGames} jogos registados.",
                     fontSize = 13.sp,
                     color = Color(0xFF64748B),
                     lineHeight = 18.sp
@@ -169,7 +163,7 @@ fun AdminHomeScreen() {
             ) {
                 // Button 1: Novo Evento
                 Button(
-                    onClick = { /* Create new event */ },
+                    onClick = onCreateEvent,
                     modifier = Modifier
                         .weight(1f)
                         .height(48.dp),
@@ -199,7 +193,8 @@ fun AdminHomeScreen() {
 
                 // Button 2: Editar Evento
                 Button(
-                    onClick = { /* Edit event */ },
+                    // TODO: ligar edição quando existir updateTournament no repository.
+                    onClick = onOpenEvents,
                     modifier = Modifier
                         .weight(1f)
                         .height(48.dp),
@@ -249,7 +244,7 @@ fun AdminHomeScreen() {
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF16A34A),
-                    modifier = Modifier.clickable { /* View all */ }
+                    modifier = Modifier.clickable(onClick = onOpenEvents)
                 )
             }
         }
@@ -267,7 +262,7 @@ fun AdminHomeScreen() {
                     .padding(horizontal = 24.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Card 1: 1.2k ATLETAS
+                // Total de atletas registados.
                 Card(
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(16.dp),
@@ -286,7 +281,7 @@ fun AdminHomeScreen() {
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "1.2k",
+                            text = state.stats.totalAthletes.toString(),
                             fontSize = 24.sp,
                             fontWeight = FontWeight.Black,
                             color = Color(0xFF0F5A36)
@@ -320,13 +315,13 @@ fun AdminHomeScreen() {
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "15k €",
+                            text = state.stats.totalRevenue?.let { "%.2f €".format(it) } ?: "0.00 €",
                             fontSize = 24.sp,
                             fontWeight = FontWeight.Black,
                             color = Color(0xFF1E3A8A)
                         )
                         Text(
-                            text = "RECEITA",
+                            text = "RECEITA ESTIMADA",
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF1D4ED8),
@@ -352,7 +347,7 @@ fun AdminHomeScreen() {
                         .padding(18.dp)
                 ) {
                     Text(
-                        text = "DESEMPENHO",
+                        text = "ORGANIZADORES PENDENTES",
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         color = SportFlowGreen,
@@ -360,14 +355,17 @@ fun AdminHomeScreen() {
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "+24% Este Mês",
+                        text = "${state.stats.pendingOrganizers} por validar",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Black,
                         color = Color.White
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     LinearProgressIndicator(
-                        progress = { 0.7f },
+                        progress = {
+                            if (state.stats.totalOrganizers == 0) 0f
+                            else (state.stats.pendingOrganizers.toFloat() / state.stats.totalOrganizers).coerceIn(0f, 1f)
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(4.dp)
@@ -395,7 +393,8 @@ fun AdminHomeScreen() {
                     fontWeight = FontWeight.Bold,
                     color = SportFlowDarkBlue
                 )
-                IconButton(onClick = { /* Filter */ }, modifier = Modifier.size(24.dp)) {
+                // TODO: adicionar filtros quando existir um critério funcional definido para este resumo.
+                IconButton(onClick = {}, modifier = Modifier.size(24.dp)) {
                     Icon(
                         imageVector = Icons.Default.Tune,
                         contentDescription = "Filtrar",
@@ -612,7 +611,8 @@ fun AdminMatchCard(match: UpcomingMatch) {
             }
 
             // Edit Action buttons
-            IconButton(onClick = { /* Edit match */ }, modifier = Modifier.size(28.dp)) {
+            // TODO: ligar edição quando o fluxo Admin definir os campos editáveis de um jogo.
+            IconButton(onClick = {}, modifier = Modifier.size(28.dp)) {
                 Icon(
                     imageVector = Icons.Default.Edit,
                     contentDescription = "Editar",
@@ -620,7 +620,8 @@ fun AdminMatchCard(match: UpcomingMatch) {
                     modifier = Modifier.size(16.dp)
                 )
             }
-            IconButton(onClick = { /* Menu */ }, modifier = Modifier.size(28.dp)) {
+            // TODO: ligar menu quando existirem ações administrativas definidas para jogos.
+            IconButton(onClick = {}, modifier = Modifier.size(28.dp)) {
                 Icon(
                     imageVector = Icons.Default.MoreVert,
                     contentDescription = "Opções",
@@ -671,6 +672,17 @@ fun NotificationRow(notification: AdminNotification) {
             )
         }
     }
+}
+
+private fun adminSportIcon(sport: String?): ImageVector = when (sport?.uppercase()) {
+    "BASQUETEBOL", "BASKETBALL" -> Icons.Default.SportsBasketball
+    "TÉNIS", "TENIS", "TENNIS" -> Icons.Default.SportsTennis
+    else -> Icons.Default.SportsFootball
+}
+
+private fun isAdminFinishedStatus(status: String): Boolean {
+    val normalized = status.uppercase().replace('Í', 'I').replace('Á', 'A')
+    return normalized == "FINALIZADO" || normalized == "CONCLUIDO" || normalized == "TERMINADO"
 }
 
 @Preview(showBackground = true)

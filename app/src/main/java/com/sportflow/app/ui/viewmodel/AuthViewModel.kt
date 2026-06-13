@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sportflow.app.data.remote.SupabaseProvider
 import com.sportflow.app.data.repository.ProfilesRepository
+import com.sportflow.app.model.ProfileStatus
+import com.sportflow.app.model.UserRole
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,24 +49,49 @@ class AuthViewModel(
                 if (user != null) {
                     // 2. Procurar o perfil real na BD
                     val profile = profilesRepository.getProfile(user.id)
-                    val dbRole = profile?.papel ?: "JOGADOR"
+                    if (profile == null) {
+                        SupabaseProvider.client.auth.signOut()
+                        _authState.value = AuthState.Error("Perfil não encontrado. Contacta o suporte da plataforma.")
+                        return@launch
+                    }
+
+                    val dbRole = profile.role
                     
                     // 3. Mapear UI "ATLETA" para DB "JOGADOR" para comparação
                     val normalizedSelectedRole = if (selectedRole == "ATLETA") "JOGADOR" else selectedRole
                     
                     // 4. Validar se os cargos coincidem
-                    if (dbRole == normalizedSelectedRole) {
-                        _authState.value = AuthState.Success(selectedRole)
-                    } else {
-                        // Se não coincidir, fazemos logout imediato por segurança
+                    if (dbRole?.name != normalizedSelectedRole) {
                         SupabaseProvider.client.auth.signOut()
                         _authState.value = AuthState.Error("Acesso negado: o perfil selecionado não é válido para esta conta.")
+                        return@launch
+                    }
+
+                    when (profile.status) {
+                        ProfileStatus.ATIVO -> _authState.value = AuthState.Success(selectedRole)
+                        ProfileStatus.PENDENTE -> {
+                            SupabaseProvider.client.auth.signOut()
+                            _authState.value = AuthState.Error("A conta ainda aguarda aprovação do administrador.")
+                        }
+                        ProfileStatus.REJEITADO -> {
+                            SupabaseProvider.client.auth.signOut()
+                            _authState.value = AuthState.Error("O pedido desta conta foi rejeitado.")
+                        }
+                        ProfileStatus.BLOQUEADO -> {
+                            SupabaseProvider.client.auth.signOut()
+                            _authState.value = AuthState.Error("Esta conta encontra-se bloqueada.")
+                        }
+                        null -> {
+                            SupabaseProvider.client.auth.signOut()
+                            _authState.value = AuthState.Error("O estado do perfil é inválido. Contacta o suporte.")
+                        }
                     }
                 } else {
                     _authState.value = AuthState.Error("Utilizador não encontrado")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                runCatching { SupabaseProvider.client.auth.signOut() }
                 _authState.value = AuthState.Error("Email ou palavra-passe incorretos")
             }
         }
@@ -75,6 +102,11 @@ class AuthViewModel(
             _authState.value = AuthState.Loading
             try {
                 val dbRole = if (role == "ATLETA") "JOGADOR" else role
+
+                if (dbRole == UserRole.ADMIN.name) {
+                    _authState.value = AuthState.Error("As contas de administrador não podem ser criadas pelo registo público.")
+                    return@launch
+                }
 
                 SupabaseProvider.client.auth.signUpWith(Email) {
                     this.email = email

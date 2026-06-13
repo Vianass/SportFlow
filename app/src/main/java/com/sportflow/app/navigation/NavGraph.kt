@@ -2,6 +2,7 @@ package com.sportflow.app.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import android.content.Context
 import androidx.navigation.compose.NavHost
@@ -11,6 +12,9 @@ import com.sportflow.app.ui.screens.*
 import com.sportflow.app.ui.screens.user.UserDashboardScreen
 import com.sportflow.app.ui.screens.admin.AdminDashboardScreen
 import com.sportflow.app.ui.screens.organizador.OrganizadorDashboardScreen
+import com.sportflow.app.data.remote.SupabaseProvider
+import io.github.jan.supabase.auth.auth
+import kotlinx.coroutines.launch
 
 @Composable
 fun NavGraph() {
@@ -60,14 +64,20 @@ fun NavGraph() {
             val context = LocalContext.current
             val sharedPrefs = remember { context.getSharedPreferences("sportflow_prefs", Context.MODE_PRIVATE) }
             val userType = remember { sharedPrefs.getString("user_type", "ATLETA") ?: "ATLETA" }
+            val scope = rememberCoroutineScope()
 
-            val onLogout = {
-                sharedPrefs.edit()
-                    .putBoolean("is_logged_in", false)
-                    .apply()
-                navController.navigate(NavRoutes.LANDING) {
-                    popUpTo(NavRoutes.HOME) { inclusive = true }
+            val onLogout: () -> Unit = {
+                scope.launch {
+                    runCatching { SupabaseProvider.client.auth.signOut() }
+                    sharedPrefs.edit()
+                        .putBoolean("is_logged_in", false)
+                        .remove("user_type")
+                        .apply()
+                    navController.navigate(NavRoutes.LANDING) {
+                        popUpTo(NavRoutes.HOME) { inclusive = true }
+                    }
                 }
+                Unit
             }
 
             when (userType) {

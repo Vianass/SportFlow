@@ -31,12 +31,12 @@ import com.sportflow.app.R
 import com.sportflow.app.data.remote.dto.ProfileDto
 import com.sportflow.app.model.AppLanguage
 import com.sportflow.app.model.LocalLanguageViewModel
+import com.sportflow.app.model.ProfileStatus
 import com.sportflow.app.ui.components.ChangePasswordDialog
 import com.sportflow.app.ui.components.LanguagePickerDialog
 import com.sportflow.app.ui.components.NotificationsDialog
 import com.sportflow.app.ui.components.PaymentDialog
 import com.sportflow.app.ui.screens.user.AccountDataItem
-import com.sportflow.app.ui.screens.user.PendingUserItem
 import com.sportflow.app.ui.screens.user.SectionTitle
 import com.sportflow.app.ui.screens.user.SettingsItem
 import com.sportflow.app.ui.theme.SportFlowDarkBlue
@@ -44,7 +44,6 @@ import com.sportflow.app.ui.theme.SportFlowGreen
 import com.sportflow.app.ui.viewmodel.AdminViewModel
 import com.sportflow.app.ui.viewmodel.ProfileState
 import com.sportflow.app.ui.viewmodel.ProfileViewModel
-import kotlinx.coroutines.launch
 
 @Composable
 fun AdminProfileScreen(
@@ -56,11 +55,8 @@ fun AdminProfileScreen(
     val currentLanguage by langViewModel.language.collectAsState()
     val notificationsEnabled by langViewModel.notificationsEnabled.collectAsState()
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    
     val profileState by viewModel.profileState.collectAsState()
-    val pendingUsers by adminViewModel.pendingUsers.collectAsState()
-    val adminError by adminViewModel.errorMessage.collectAsState()
+    val adminState by adminViewModel.uiState.collectAsState()
     
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -68,6 +64,20 @@ fun AdminProfileScreen(
     var showNotificationsDialog by remember { mutableStateOf(false) }
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showPaymentDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(adminState.successMessage) {
+        adminState.successMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            adminViewModel.clearSuccess()
+        }
+    }
+
+    LaunchedEffect(adminState.errorMessage) {
+        adminState.errorMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            adminViewModel.clearError()
+        }
+    }
 
     if (showLanguagePicker) {
         LanguagePickerDialog(
@@ -166,10 +176,6 @@ fun AdminProfileScreen(
                 is ProfileState.Success -> {
                     val profile = (profileState as ProfileState.Success).profile
                     
-                    LaunchedEffect(Unit) {
-                        adminViewModel.loadPendingUsers()
-                    }
-
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(top = 24.dp, bottom = 32.dp),
@@ -197,29 +203,28 @@ fun AdminProfileScreen(
                         }
 
                         // 2. Pendidos de Aprovação (ADMIN EXCLUSIVE)
-                        if (adminError != null) {
-                            item {
-                                Text(text = adminError!!, color = Color.Red, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
-                            }
-                        }
-                        
-                        if (pendingUsers.isNotEmpty()) {
+                        if (adminState.pendingOrganizers.isNotEmpty()) {
                             item { SectionTitle(title = "APROVAÇÕES PENDENTES") }
-                            items(pendingUsers) { pendingUser ->
-                                PendingUserItem(
+                            items(adminState.pendingOrganizers, key = { it.id }) { pendingUser ->
+                                AdminPendingOrganizerItem(
                                     user = pendingUser,
-                                    onApprove = { 
-                                        adminViewModel.approveUser(pendingUser.id)
-                                        scope.launch {
-                                            snackbarHostState.showSnackbar("Organizador aprovado com sucesso!")
-                                        }
-                                    },
-                                    onReject = { 
-                                        adminViewModel.rejectUser(pendingUser.id)
-                                        scope.launch {
-                                            snackbarHostState.showSnackbar("Pedido de organizador rejeitado.")
-                                        }
-                                    }
+                                    operationInProgress = adminState.operationInProgress,
+                                    onApprove = { adminViewModel.approveOrganizer(pendingUser.id) },
+                                    onReject = { adminViewModel.rejectOrganizer(pendingUser.id) }
+                                )
+                            }
+                            item { Spacer(modifier = Modifier.height(16.dp)) }
+                        }
+
+                        if (adminState.users.isNotEmpty()) {
+                            item { SectionTitle(title = "UTILIZADORES") }
+                            items(adminState.users, key = { it.id }) { user ->
+                                AdminUserItem(
+                                    user = user,
+                                    isCurrentAdmin = user.id == profile.id,
+                                    operationInProgress = adminState.operationInProgress,
+                                    onBlock = { adminViewModel.blockUser(user.id) },
+                                    onUnblock = { adminViewModel.unblockUser(user.id) }
                                 )
                             }
                             item { Spacer(modifier = Modifier.height(16.dp)) }
@@ -258,6 +263,90 @@ fun AdminProfileScreen(
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdminPendingOrganizerItem(
+    user: ProfileDto,
+    operationInProgress: String?,
+    onApprove: () -> Unit,
+    onReject: () -> Unit
+) {
+    val isBusy = operationInProgress?.endsWith(":${user.id}") == true
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 5.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(user.nome, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SportFlowDarkBlue)
+                Text(user.email, fontSize = 11.sp, color = Color(0xFF64748B))
+                Text("PEDIDO: ORGANIZADOR", fontSize = 9.sp, fontWeight = FontWeight.Black, color = Color(0xFF2563EB))
+            }
+            if (isBusy) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+            } else {
+                IconButton(onClick = onReject, enabled = operationInProgress == null) {
+                    Icon(Icons.Default.Close, contentDescription = "Rejeitar", tint = Color(0xFFDC2626))
+                }
+                IconButton(onClick = onApprove, enabled = operationInProgress == null) {
+                    Icon(Icons.Default.Check, contentDescription = "Aprovar", tint = Color(0xFF16A34A))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdminUserItem(
+    user: ProfileDto,
+    isCurrentAdmin: Boolean,
+    operationInProgress: String?,
+    onBlock: () -> Unit,
+    onUnblock: () -> Unit
+) {
+    val isBlocked = user.status == ProfileStatus.BLOQUEADO
+    val canChangeStatus = !isCurrentAdmin && !user.papel.equals("ADMIN", ignoreCase = true)
+    val isBusy = operationInProgress?.endsWith(":${user.id}") == true
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 5.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(user.nome, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SportFlowDarkBlue)
+                Text(user.email, fontSize = 11.sp, color = Color(0xFF64748B))
+                Text(
+                    "${user.papel} · ${user.estado}",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isBlocked) Color(0xFFDC2626) else Color(0xFF16A34A)
+                )
+            }
+            when {
+                isBusy -> CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                canChangeStatus -> IconButton(
+                    onClick = if (isBlocked) onUnblock else onBlock,
+                    enabled = operationInProgress == null
+                ) {
+                    Icon(
+                        imageVector = if (isBlocked) Icons.Default.LockOpen else Icons.Default.Lock,
+                        contentDescription = if (isBlocked) "Desbloquear" else "Bloquear",
+                        tint = if (isBlocked) Color(0xFF16A34A) else Color(0xFFDC2626)
+                    )
                 }
             }
         }

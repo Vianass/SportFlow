@@ -1,80 +1,390 @@
 package com.sportflow.app.ui.viewmodel
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sportflow.app.data.remote.dto.ProfileDto
-import com.sportflow.app.data.repository.ProfilesRepository
+import com.sportflow.app.data.remote.dto.GameDto
+import com.sportflow.app.data.repository.AdminRepository
+import com.sportflow.app.model.AdminPlatformStats
+import com.sportflow.app.model.AdminUserFilter
+import com.sportflow.app.model.CreateTournamentRequest
+import com.sportflow.app.model.ProfileStatus
+import com.sportflow.app.model.Tournament
+import com.sportflow.app.model.UserRole
+import com.sportflow.app.model.UpdateTournamentRequest
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+data class AdminUiState(
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null,
+    val pendingOrganizers: List<ProfileDto> = emptyList(),
+    val users: List<ProfileDto> = emptyList(),
+    val tournaments: List<Tournament> = emptyList(),
+    val games: List<GameDto> = emptyList(),
+    val teamNames: Map<Long, String> = emptyMap(),
+    val stats: AdminPlatformStats = AdminPlatformStats(),
+    val operationInProgress: String? = null,
+    val successMessage: String? = null,
+    val isAuthorized: Boolean = false,
+    val accessChecked: Boolean = false
+)
+
 class AdminViewModel(
-    private val repository: ProfilesRepository = ProfilesRepository()
+    private val repository: AdminRepository = AdminRepository()
 ) : ViewModel() {
 
-    private val _pendingUsers = MutableStateFlow<List<ProfileDto>>(emptyList())
-    val pendingUsers: StateFlow<List<ProfileDto>> = _pendingUsers.asStateFlow()
+    private val _uiState = MutableStateFlow(AdminUiState())
+    val uiState: StateFlow<AdminUiState> = _uiState.asStateFlow()
 
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-
-    private val _errorMessage = MutableStateFlow<String?>(null)
-    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+    // Compatibility for the existing profile composables while Admin screens
+    // migrate to the consolidated AdminUiState.
+    val pendingUsers: StateFlow<List<ProfileDto>> = uiState
+        .map { it.pendingOrganizers }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val errorMessage: StateFlow<String?> = uiState
+        .map { it.errorMessage }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val isLoading: StateFlow<Boolean> = uiState
+        .map { it.isLoading }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     init {
-        loadPendingUsers()
+        loadDashboard()
     }
 
-    fun loadPendingUsers() {
+    fun loadDashboard() {
         viewModelScope.launch {
-            _isLoading.value = true
+            startLoading()
             try {
-                val results = repository.getPendingProfiles()
-                _pendingUsers.value = results
-                _errorMessage.value = null
-                Log.d("AdminViewModel", "Pedidos carregados: ${results.size}")
-            } catch (e: Exception) {
-                Log.e("AdminViewModel", "Erro ao carregar", e)
-                _errorMessage.value = "Erro ao carregar: ${e.message}"
-            } finally {
-                _isLoading.value = false
+                repository.requireAdmin()
+                val (dashboard, users) = coroutineScope {
+                    val dashboardRequest = async { repository.getDashboardData() }
+                    val usersRequest = async { repository.getAllUsers() }
+                    dashboardRequest.await() to usersRequest.await()
+                }
+
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = null,
+                        pendingOrganizers = dashboard.pendingOrganizers,
+                        users = users,
+                        tournaments = dashboard.tournaments,
+                        games = dashboard.games,
+                        teamNames = dashboard.teamNames,
+                        stats = dashboard.stats,
+                        isAuthorized = true,
+                        accessChecked = true
+                    )
+                }
+            } catch (exception: Exception) {
+                failLoading(exception, accessChecked = true, revokeAccess = true)
             }
         }
     }
 
-    fun approveUser(userId: String) {
+    fun loadUsers(
+        role: UserRole? = null,
+        status: ProfileStatus? = null,
+        search: String = ""
+    ) {
         viewModelScope.launch {
-            _isLoading.value = true
+            startLoading()
             try {
-                Log.d("AdminViewModel", "Aprovar utilizador: $userId")
-                repository.updateProfileStatus(userId, "ATIVO")
-                
-                // Pequena pausa para o Supabase processar e depois recarregar
-                kotlinx.coroutines.delay(500)
-                loadPendingUsers()
-            } catch (e: Exception) {
-                Log.e("AdminViewModel", "Erro ao aprovar", e)
-                _errorMessage.value = "Erro ao aprovar: ${e.message}"
-            } finally {
-                _isLoading.value = false
+                val users = repository.getUsers(AdminUserFilter(role, status, search))
+                _uiState.update { it.copy(isLoading = false, errorMessage = null, users = users) }
+            } catch (exception: Exception) {
+                failLoading(exception)
             }
         }
     }
 
-    fun rejectUser(userId: String) {
+    fun loadPendingOrganizers() {
         viewModelScope.launch {
-            _isLoading.value = true
+            startLoading()
             try {
-                repository.updateProfileStatus(userId, "REJEITADO")
-                kotlinx.coroutines.delay(500)
-                loadPendingUsers()
-            } catch (e: Exception) {
-                _errorMessage.value = "Erro ao rejeitar: ${e.message}"
-            } finally {
-                _isLoading.value = false
+                val pending = repository.getPendingOrganizers()
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = null,
+                        pendingOrganizers = pending,
+                        stats = it.stats.copy(pendingOrganizers = pending.size)
+                    )
+                }
+            } catch (exception: Exception) {
+                failLoading(exception)
             }
+        }
+    }
+
+    fun loadPendingUsers() = loadPendingOrganizers()
+
+    fun loadStatistics() {
+        viewModelScope.launch {
+            startLoading()
+            try {
+                val stats = repository.getPlatformStats()
+                _uiState.update { it.copy(isLoading = false, errorMessage = null, stats = stats) }
+            } catch (exception: Exception) {
+                failLoading(exception)
+            }
+        }
+    }
+
+    fun loadTournaments() {
+        viewModelScope.launch {
+            startLoading()
+            try {
+                val tournaments = repository.getAdminTournaments()
+                _uiState.update { it.copy(isLoading = false, errorMessage = null, tournaments = tournaments) }
+            } catch (exception: Exception) {
+                failLoading(exception)
+            }
+        }
+    }
+
+    fun createTournament(
+        name: String,
+        sport: String,
+        category: String,
+        date: String,
+        location: String,
+        capacity: String,
+        price: String
+    ) {
+        if (_uiState.value.operationInProgress != null) return
+
+        val trimmedName = name.trim()
+        val trimmedDate = date.trim()
+        val trimmedLocation = location.trim()
+        val parsedCapacity = capacity.trim().toIntOrNull()
+        val parsedPrice = price.trim().replace(',', '.').toDoubleOrNull()
+        val validationError = when {
+            trimmedName.isBlank() -> "Indica o nome do evento."
+            !trimmedDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) -> "Usa a data no formato AAAA-MM-DD."
+            trimmedLocation.isBlank() -> "Indica a localização."
+            parsedCapacity == null || parsedCapacity <= 0 -> "A capacidade tem de ser maior que zero."
+            parsedPrice == null || parsedPrice < 0.0 -> "O preço tem de ser igual ou maior que zero."
+            else -> null
+        }
+
+        if (validationError != null) {
+            _uiState.update { it.copy(errorMessage = validationError, successMessage = null) }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    operationInProgress = "createTournament",
+                    errorMessage = null,
+                    successMessage = null
+                )
+            }
+            try {
+                repository.createTournament(
+                    CreateTournamentRequest(
+                        name = trimmedName,
+                        startDate = "${trimmedDate}T00:00:00Z",
+                        status = "ABERTO",
+                        sport = sport,
+                        category = category,
+                        location = trimmedLocation,
+                        maxCapacity = parsedCapacity!!,
+                        price = parsedPrice!!
+                    )
+                )
+                val dashboard = repository.getDashboardData()
+                _uiState.update {
+                    it.copy(
+                        operationInProgress = null,
+                        tournaments = dashboard.tournaments,
+                        games = dashboard.games,
+                        teamNames = dashboard.teamNames,
+                        stats = dashboard.stats,
+                        successMessage = "Torneio criado com sucesso."
+                    )
+                }
+            } catch (exception: Exception) {
+                _uiState.update {
+                    it.copy(
+                        operationInProgress = null,
+                        errorMessage = exception.message ?: "Erro ao criar o torneio."
+                    )
+                }
+            }
+        }
+    }
+
+    fun updateTournament(
+        tournamentId: Long,
+        name: String,
+        sport: String,
+        category: String,
+        date: String,
+        location: String,
+        capacity: String,
+        price: String,
+        status: String
+    ) {
+        if (_uiState.value.operationInProgress != null) return
+
+        val trimmedName = name.trim()
+        val trimmedDate = date.trim()
+        val trimmedLocation = location.trim()
+        val parsedCapacity = capacity.trim().toIntOrNull()
+        val parsedPrice = price.trim().replace(',', '.').toDoubleOrNull()
+        val normalizedStatus = status.trim().uppercase()
+        val validationError = when {
+            trimmedName.isBlank() -> "Indica o nome do evento."
+            !trimmedDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) -> "Usa a data no formato AAAA-MM-DD."
+            trimmedLocation.isBlank() -> "Indica a localização."
+            parsedCapacity == null || parsedCapacity <= 0 -> "A capacidade tem de ser maior que zero."
+            parsedPrice == null || parsedPrice < 0.0 -> "O preço tem de ser igual ou maior que zero."
+            normalizedStatus !in setOf("ABERTO", "ATIVO", "CONCLUIDO", "FINALIZADO") -> "Seleciona um estado válido."
+            else -> null
+        }
+
+        if (validationError != null) {
+            _uiState.update { it.copy(errorMessage = validationError, successMessage = null) }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    operationInProgress = "updateTournament:$tournamentId",
+                    errorMessage = null,
+                    successMessage = null
+                )
+            }
+            try {
+                repository.updateTournament(
+                    UpdateTournamentRequest(
+                        id = tournamentId,
+                        name = trimmedName,
+                        startDate = "${trimmedDate}T00:00:00Z",
+                        status = normalizedStatus,
+                        sport = sport,
+                        category = category,
+                        location = trimmedLocation,
+                        maxCapacity = parsedCapacity!!,
+                        price = parsedPrice!!
+                    )
+                )
+                val dashboard = repository.getDashboardData()
+                _uiState.update {
+                    it.copy(
+                        operationInProgress = null,
+                        tournaments = dashboard.tournaments,
+                        games = dashboard.games,
+                        teamNames = dashboard.teamNames,
+                        stats = dashboard.stats,
+                        successMessage = "Torneio atualizado com sucesso."
+                    )
+                }
+            } catch (exception: Exception) {
+                _uiState.update {
+                    it.copy(
+                        operationInProgress = null,
+                        errorMessage = exception.message ?: "Erro ao editar o torneio."
+                    )
+                }
+            }
+        }
+    }
+
+    fun approveOrganizer(id: String) = runUserOperation(id, "approve:$id") {
+        repository.approveOrganizer(id)
+    }
+
+    fun approveUser(id: String) = approveOrganizer(id)
+
+    fun rejectOrganizer(id: String) = runUserOperation(id, "reject:$id") {
+        repository.rejectOrganizer(id)
+    }
+
+    fun rejectUser(id: String) = rejectOrganizer(id)
+
+    fun blockUser(id: String) = runUserOperation(id, "block:$id") {
+        repository.blockUser(id)
+    }
+
+    fun unblockUser(id: String) = runUserOperation(id, "unblock:$id") {
+        repository.unblockUser(id)
+    }
+
+    fun refresh() = loadDashboard()
+
+    fun clearError() {
+        _uiState.update { it.copy(errorMessage = null) }
+    }
+
+    fun clearSuccess() {
+        _uiState.update { it.copy(successMessage = null) }
+    }
+
+    private fun runUserOperation(
+        userId: String,
+        operationKey: String,
+        action: suspend () -> com.sportflow.app.model.AdminUserActionResult
+    ) {
+        if (_uiState.value.operationInProgress != null) return
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(operationInProgress = operationKey, errorMessage = null, successMessage = null)
+            }
+            try {
+                val result = action()
+                val pending = repository.getPendingOrganizers()
+                val users = repository.getAllUsers()
+                val stats = repository.getPlatformStats()
+                _uiState.update {
+                    it.copy(
+                        operationInProgress = null,
+                        pendingOrganizers = pending,
+                        users = users,
+                        stats = stats,
+                        successMessage = result.message
+                    )
+                }
+            } catch (exception: Exception) {
+                _uiState.update {
+                    it.copy(
+                        operationInProgress = null,
+                        errorMessage = exception.message ?: "Erro ao atualizar o utilizador."
+                    )
+                }
+            }
+        }
+    }
+
+    private fun startLoading() {
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+    }
+
+    private fun failLoading(
+        exception: Exception,
+        accessChecked: Boolean = _uiState.value.accessChecked,
+        revokeAccess: Boolean = false
+    ) {
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                errorMessage = exception.message ?: "Erro ao carregar dados administrativos.",
+                isAuthorized = if (revokeAccess) false else it.isAuthorized,
+                accessChecked = accessChecked
+            )
         }
     }
 }
